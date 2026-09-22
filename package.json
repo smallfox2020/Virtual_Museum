@@ -1,0 +1,20 @@
+{
+  "name": "virtual-museum",
+  "version": "1.0.0",
+  "private": true,
+  "description": "用 three.js 编写的虚拟博物馆，由 Electron 以桌面窗口方式运行",
+  "main": "main.js",
+  "scripts": {
+    "web": "node server.js",
+    "start": "electron ."
+  },
+  "dependencies": {
+    "three": "^0.170.0"
+  },
+  "devDependencies": {
+    "electron": "^33.0.0"
+  },
+  "allowScripts": {
+    "electron@33.4.11": true
+  }
+}

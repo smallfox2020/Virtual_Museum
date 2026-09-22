@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:"
+    />
+    <title>虚拟博物馆 · Virtual Museum</title>
+    <link rel="stylesheet" href="./styles.css" />
+    <!-- 相对路径：网页服务器与 Electron 的 museum:// 协议下都能正确解析 -->
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "./node_modules/three/build/three.module.js"
+        }
+      }
+    </script>
+  </head>
+  <body>
+    <canvas id="scene"></canvas>
+
+    <div id="hud">
+      <header id="brand">
+        <h1>虚拟博物馆</h1>
+        <p>用 three.js 搭建的展厅 · Electron 窗口运行</p>
+      </header>
+
+      <div id="stats"></div>
+
+      <div id="prompt" class="hidden">按 <kbd>E</kbd> 查看</div>
+
+      <div id="hint">
+        <span><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> / 方向键 移动</span>
+        <span><kbd>鼠标</kbd> 转向</span>
+        <span><kbd>Shift</kbd> 奔跑</span>
+        <span><kbd>空格</kbd> 跳跃</span>
+        <span><kbd>E</kbd> 查看展品</span>
+        <span><kbd>Esc</kbd> 释放鼠标</span>
+      </div>
+
+      <section id="panel" class="hidden">
+        <div id="panel-tag"></div>
+        <h2 id="panel-title"></h2>
+        <p id="panel-desc"></p>
+        <footer>按 <kbd>E</kbd> 或 <kbd>Esc</kbd> 关闭</footer>
+      </section>
+
+      <div id="overlay">
+        <div class="overlay-card">
+          <h2>点击画面开始漫游</h2>
+          <p>移动鼠标环视展厅，走近展品按 E 查看介绍</p>
+        </div>
+      </div>
+    </div>
+
+    <script type="module" src="./src/main.js"></script>
+  </body>
+</html>
