@@ -9,10 +9,19 @@ export function createHud() {
   const panelTitle = document.getElementById('panel-title');
   const panelDesc = document.getElementById('panel-desc');
   const stats = document.getElementById('stats');
+  const toast = document.getElementById('toast');
 
   let panelOpen = false;
   let locked = false;
   let started = false;
+  let toastTimer = 0;
+
+  function showToast(text) {
+    toast.textContent = text;
+    toast.classList.remove('hidden');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => toast.classList.add('hidden'), 1600);
+  }
 
   /** 只有「还没开始」时才显示大遮罩；之后只显示一行小提示 */
   function applyOverlay() {
@@ -66,6 +75,11 @@ export function createHud() {
 
     setStats(text) {
       stats.textContent = text;
+    },
+
+    /** 切换第一/第三人称时给一个短提示 */
+    setViewMode(mode) {
+      showToast(mode === 'first' ? '第一人称视角 · 按 V 切回' : '第三人称视角');
     },
   };
 }

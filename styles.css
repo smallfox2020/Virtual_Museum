@@ -231,6 +231,25 @@ kbd {
   white-space: nowrap;
 }
 
+/* 切换第一/第三人称时的短提示 */
+#toast {
+  position: absolute;
+  left: 50%;
+  bottom: 31%;
+  transform: translateX(-50%);
+  padding: 6px 16px;
+  border: 1px solid #6b4a2c;
+  border-radius: 999px;
+  background: rgba(24, 17, 14, 0.76);
+  backdrop-filter: blur(6px);
+  font-size: 12px;
+  letter-spacing: 1px;
+  color: #e8d3b6;
+  transition: opacity 0.25s ease;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
 /* ---------------- 介绍面板 ---------------- */
 
 #panel {

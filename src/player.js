@@ -1,11 +1,19 @@
 import * as THREE from 'three';
 
 const EYE_HEIGHT = 1.5;
+// 第一人称的镜头高度，对齐头部球体（y=1.72）的眼位
+const FIRST_PERSON_EYE_HEIGHT = 1.68;
 const CAMERA_DISTANCE = 4.8;
 const GRAVITY = 22;
 const JUMP_SPEED = 7.4;
 const WALK_SPEED = 3.4;
 const RUN_SPEED = 6.4;
+
+// 俯仰角限制：第三人称不能压太低（镜头会钻到地板下），第一人称则可以抬头看穹顶
+const PITCH_LIMITS = {
+  third: [-0.4, 1.15],
+  first: [-1.15, 1.3],
+};
 
 const COLORS = {
   skin: 0xe8b48c,
@@ -90,11 +98,14 @@ function buildCharacter() {
     shoulders.push(shoulder);
   }
 
+  const meshes = [];
   model.traverse((child) => {
-    if (child.isMesh) child.receiveShadow = true;
+    if (!child.isMesh) return;
+    child.receiveShadow = true;
+    meshes.push(child);
   });
 
-  return { model, hips, shoulders };
+  return { model, meshes, hips, shoulders };
 }
 
 export class Player {
@@ -111,6 +122,8 @@ export class Player {
     this.yaw = 0;
     this.pitch = 0.24;
     this.sensitivity = 0.0022;
+    this.mode = 'third';
+    this.modelHidden = false;
 
     this.facing = Math.PI;
     this.walkPhase = 0;
@@ -170,6 +183,45 @@ export class Player {
     this.updateCamera(dt, camera);
   }
 
+  /** 第一人称 / 第三人称互相切换（V 键），返回切换后的模式 */
+  toggleMode() {
+    this.setMode(this.mode === 'third' ? 'first' : 'third');
+    return this.mode;
+  }
+
+  setMode(mode) {
+    if (mode === this.mode) return this.mode;
+    this.mode = mode;
+
+    this.setModelHidden(mode === 'first');
+
+    // 两种视角的俯仰范围不同，切换后先夹一次
+    const [minPitch, maxPitch] = PITCH_LIMITS[this.mode];
+    this.pitch = THREE.MathUtils.clamp(this.pitch, minPitch, maxPitch);
+
+    // 换视角时不做插值，否则镜头会从旧位置一路滑过去
+    this.cameraReady = false;
+    return this.mode;
+  }
+
+  /**
+   * 第一人称时隐藏自身模型。
+   *
+   * 这里关的是材质的 colorWrite / depthWrite，而不是 mesh.visible：
+   * 阴影 pass 开头就是 `if (object.visible === false) return`，用 visible 会把自己的
+   * 影子也一起弄没；而阴影用的是内部 depth 材质，跟 colorWrite 无关。
+   * depthWrite 同样要关——否则“看不见”的身体依旧写深度，低头时会在地面上抠出一块黑洞。
+   */
+  setModelHidden(hidden) {
+    if (this.modelHidden === hidden) return;
+    this.modelHidden = hidden;
+
+    for (const mesh of this.character.meshes) {
+      mesh.material.colorWrite = !hidden;
+      mesh.material.depthWrite = !hidden;
+    }
+  }
+
   applyMouseLook(input) {
     const delta = input.consumeMouseDelta();
     if (delta.x === 0 && delta.y === 0) return;
@@ -177,7 +229,9 @@ export class Player {
     this.yaw -= delta.x * this.sensitivity;
     // y 轴反转：鼠标向上推，镜头向上抬
     this.pitch += delta.y * this.sensitivity;
-    this.pitch = THREE.MathUtils.clamp(this.pitch, -0.4, 1.15);
+
+    const [minPitch, maxPitch] = PITCH_LIMITS[this.mode];
+    this.pitch = THREE.MathUtils.clamp(this.pitch, minPitch, maxPitch);
   }
 
   resolveCollisions() {
@@ -221,7 +275,10 @@ export class Player {
 
   updateFacing(dt) {
     let target = this.facing;
-    if (this.speed > 0.25) {
+    if (this.mode === 'first') {
+      // 第一人称：身体朝向跟着镜头，投影与四肢才不会指错方向
+      target = this.yaw + Math.PI;
+    } else if (this.speed > 0.25) {
       target = Math.atan2(this.velocity.x, this.velocity.z);
     }
 
@@ -251,6 +308,31 @@ export class Player {
   }
 
   updateCamera(dt, camera) {
+    if (this.mode === 'first') this.updateFirstPersonCamera(camera);
+    else this.updateThirdPersonCamera(dt, camera);
+  }
+
+  /** 第一人称：镜头就在眼睛上，视线方向与第三人称完全一致，切换时不会跳（身体由 setModelHidden 收起） */
+  updateFirstPersonCamera(camera) {
+    const amplitude = Math.min(this.speed / WALK_SPEED, 1.4);
+    const bob = this.onGround ? Math.abs(Math.sin(this.walkPhase)) * 0.028 * amplitude : 0;
+
+    camera.position.set(
+      this.position.x,
+      this.position.y + FIRST_PERSON_EYE_HEIGHT + bob,
+      this.position.z,
+    );
+
+    const cosPitch = Math.cos(this.pitch);
+    this.cameraTarget.set(
+      camera.position.x - Math.sin(this.yaw) * cosPitch,
+      camera.position.y - Math.sin(this.pitch),
+      camera.position.z - Math.cos(this.yaw) * cosPitch,
+    );
+    camera.lookAt(this.cameraTarget);
+  }
+
+  updateThirdPersonCamera(dt, camera) {
     this.cameraTarget.set(this.position.x, this.position.y + EYE_HEIGHT, this.position.z);
 
     const horizontal = Math.cos(this.pitch) * CAMERA_DISTANCE;

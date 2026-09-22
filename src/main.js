@@ -136,6 +136,10 @@ window.addEventListener('keydown', (event) => {
     else if (activeItem) openPanel(activeItem);
   } else if (event.code === 'KeyO') {
     openInspector();
+  } else if (event.code === 'KeyV') {
+    // 面板/观察模式是模态的，那里不切视角
+    if (inspector.isOpen() || hud.isPanelOpen()) return;
+    hud.setViewMode(player.toggleMode());
   } else if (event.code === 'Escape') {
     // Esc 在观察模式里回到介绍面板，在介绍面板里回到场景
     if (inspector.isOpen()) closeInspector();
