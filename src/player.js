@@ -175,7 +175,8 @@ export class Player {
     if (delta.x === 0 && delta.y === 0) return;
 
     this.yaw -= delta.x * this.sensitivity;
-    this.pitch -= delta.y * this.sensitivity;
+    // y 轴反转：鼠标向上推，镜头向上抬
+    this.pitch += delta.y * this.sensitivity;
     this.pitch = THREE.MathUtils.clamp(this.pitch, -0.4, 1.15);
   }
 
@@ -187,8 +188,24 @@ export class Player {
     this.position.x = THREE.MathUtils.clamp(this.position.x, -limitX, limitX);
     this.position.z = THREE.MathUtils.clamp(this.position.z, -limitZ, limitZ);
 
-    // 圆柱形障碍（展台、立柱）用圆形推出
+    // 障碍物：展台/立柱是圆柱，隔墙/钟架是轴对齐长方体
     for (const collider of this.colliders) {
+      if (collider.halfX !== undefined) {
+        const dx = this.position.x - collider.x;
+        const dz = this.position.z - collider.z;
+        const overlapX = collider.halfX + this.radius - Math.abs(dx);
+        const overlapZ = collider.halfZ + this.radius - Math.abs(dz);
+        if (overlapX <= 0 || overlapZ <= 0) continue;
+
+        // 沿穿透较浅的一轴推出，贴着墙面滑动
+        if (overlapX < overlapZ) {
+          this.position.x += dx >= 0 ? overlapX : -overlapX;
+        } else {
+          this.position.z += dz >= 0 ? overlapZ : -overlapZ;
+        }
+        continue;
+      }
+
       const dx = this.position.x - collider.x;
       const dz = this.position.z - collider.z;
       const minDistance = collider.radius + this.radius;

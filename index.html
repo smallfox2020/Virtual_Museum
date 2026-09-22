@@ -6,13 +6,14 @@
       http-equiv="Content-Security-Policy"
       content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:"
     />
-    <title>虚拟博物馆 · Virtual Museum</title>
+    <title>湖北省博物馆 · 虚拟展厅</title>
     <link rel="stylesheet" href="./styles.css" />
     <!-- 相对路径：网页服务器与 Electron 的 museum:// 协议下都能正确解析 -->
     <script type="importmap">
       {
         "imports": {
-          "three": "./node_modules/three/build/three.module.js"
+          "three": "./node_modules/three/build/three.module.js",
+          "three/addons/": "./node_modules/three/examples/jsm/"
         }
       }
     </script>
@@ -22,11 +23,51 @@
 
     <div id="hud">
       <header id="brand">
-        <h1>虚拟博物馆</h1>
-        <p>用 three.js 搭建的展厅 · Electron 窗口运行</p>
+        <h1>湖北省博物馆</h1>
+        <p>中央长廊 · 四厅一院 · 编钟厅</p>
       </header>
 
       <div id="stats"></div>
+
+      <div id="topbar">
+        <button id="music-btn" class="icon-btn" type="button" title="背景音乐（点击播放 / 停止）" aria-label="背景音乐">
+          <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+            <path
+              d="M9 17.5V5.8l10-2.1v11.6"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.7"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            />
+            <ellipse cx="6.4" cy="17.6" rx="2.7" ry="2.3" fill="currentColor" />
+            <ellipse cx="16.4" cy="15.4" rx="2.7" ry="2.3" fill="currentColor" />
+          </svg>
+        </button>
+        <button id="settings-btn" class="icon-btn" type="button" title="设置" aria-label="设置">
+          <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+            <path
+              d="M4 7.5h8M17 7.5h3M4 16.5h3M12 16.5h8"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.7"
+              stroke-linecap="round"
+            />
+            <circle cx="14.5" cy="7.5" r="2.5" fill="none" stroke="currentColor" stroke-width="1.7" />
+            <circle cx="9.5" cy="16.5" r="2.5" fill="none" stroke="currentColor" stroke-width="1.7" />
+          </svg>
+        </button>
+      </div>
+
+      <section id="settings" class="hidden">
+        <h3>设置</h3>
+        <label class="setting-row" for="volume">
+          <span>音量</span>
+          <input id="volume" type="range" min="0" max="100" step="1" value="45" />
+          <output id="volume-value">45</output>
+        </label>
+        <p class="setting-note">背景音乐由 WebAudio 实时合成（五声音阶拨弦 + 厅堂混响），不需要任何音频文件。</p>
+      </section>
 
       <div id="prompt" class="hidden">按 <kbd>E</kbd> 查看</div>
 
@@ -36,21 +77,38 @@
         <span><kbd>Shift</kbd> 奔跑</span>
         <span><kbd>空格</kbd> 跳跃</span>
         <span><kbd>E</kbd> 查看展品</span>
-        <span><kbd>Esc</kbd> 释放鼠标</span>
+        <span><kbd>O</kbd> 观察器物</span>
+        <span><kbd>Esc</kbd> 返回</span>
       </div>
 
       <section id="panel" class="hidden">
         <div id="panel-tag"></div>
         <h2 id="panel-title"></h2>
         <p id="panel-desc"></p>
-        <footer>按 <kbd>E</kbd> 或 <kbd>Esc</kbd> 关闭</footer>
+        <footer>
+          按 <kbd>E</kbd> 返回场景 · 按 <kbd>O</kbd> 观察器物 · 按 <kbd>Esc</kbd> 关闭
+        </footer>
       </section>
+
+      <div id="resume" class="hidden">点击画面继续漫游</div>
 
       <div id="overlay">
         <div class="overlay-card">
-          <h2>点击画面开始漫游</h2>
-          <p>移动鼠标环视展厅，走近展品按 E 查看介绍</p>
+          <h2>点击进入序厅</h2>
+          <p>一条长廊贯穿南北：两侧是曾侯乙墓、楚文化、青铜器与陶瓷四个展厅，尽头是曾侯乙编钟</p>
+          <p class="overlay-sub">走近展品按 E 查看介绍 · 按 O 单独观察器物 · 右上角可开关音乐与调节音量</p>
         </div>
+      </div>
+    </div>
+
+    <div id="inspect" class="hidden">
+      <div id="inspect-head">
+        <span id="inspect-tag"></span>
+        <h2 id="inspect-title"></h2>
+      </div>
+      <canvas id="inspect-canvas"></canvas>
+      <div id="inspect-hint">
+        拖动旋转 · 滚轮缩放 · <kbd>Esc</kbd> 返回介绍
       </div>
     </div>
 
