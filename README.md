@@ -1,6 +1,6 @@
 # 湖北省博物馆 · 虚拟展厅
 
-用 three.js 编写的可漫游虚拟博物馆：**一条中央长廊串起两侧四个展厅，南端序厅、北端通高的编钟厅**，
+基于 three.js 编写的可漫游虚拟博物馆：**一条中央长廊串起两侧四个展厅，南端序厅、北端通高的编钟厅**，
 中庭式布局与楚式陈设参照湖北省博物馆的展陈意象。同一份代码可以用浏览器运行，也可以用 Electron 运行成桌面窗口。
 
 > 这是对湖北省博物馆空间布局与楚式陈设的**意象化再现**，不是测绘级别的复原：
@@ -65,6 +65,9 @@ npm start
 
 `main.js` 注册了 `museum://` 自定义协议来加载本地文件：`file://` 下 Chromium 会
 拒绝加载 ES Module，用自定义协议可以正常解析 `import` 与 `importmap`。
+协议处理用 `fs` 直接读文件（不是 `net.fetch`），所以打进 `app.asar` 之后也能正常工作。
+
+
 
 ## 操作
 
@@ -101,8 +104,10 @@ npm start
 ## 代码结构
 
 ```
-main.js            Electron 主进程：创建窗口 + museum:// 协议
+main.js            Electron 主进程：创建窗口 + museum:// 协议（fs 直读，兼容 asar）
 server.js          零依赖静态服务器（网页端，端口 7753）
+scripts/package.js 零依赖打包脚本：Electron 运行时 + 应用文件 → 免安装绿色版
+assets/icon.ico    应用/窗口图标（256/128/64/48/32/16 六种尺寸）
 index.html         页面与 HUD 的 DOM、importmap（three / three/addons/）
 styles.css         HUD、设置面板、观察层的样式
 src/main.js        渲染器、主循环、交互流程（E / O / Esc）、音乐与设置接线
@@ -116,7 +121,7 @@ src/input.js       键鼠输入、指针锁定（失败时退化为拖动）
 src/hud.js         提示、展品信息面板、开场遮罩、FPS
 ```
 
-## 可以顺手改的地方
+## 可以顺手改的地方(画大饼)
 
 - **平面分区**：`src/museum.js` 顶部的 `ZONES`（每个展厅的矩形范围、层高、导览图配色）、
   `WALL_SEGMENTS`（隔墙中心线）、`DOOR_SIGNS`（门洞匾额）、`ROOM`（外轮廓）。

@@ -178,6 +178,10 @@ export function createInspector(canvas) {
     isOpen: () => visible,
     /** 当前观察的展品信息，用于标题 */
     info: () => (holder ? holder.userData.info : null),
+    /** 调试 / 截图用：观察场景与转台 */
+    scene,
+    pivot,
+    holder: () => holder,
     /** 调试用：观察场景的渲染统计 */
     debug: () => ({
       visible,

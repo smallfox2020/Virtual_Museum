@@ -2,19 +2,81 @@
   "name": "virtual-museum",
   "version": "1.0.0",
   "private": true,
-  "description": "用 three.js 编写的虚拟博物馆，由 Electron 以桌面窗口方式运行",
+  "description": "用 three.js 编写的湖北省博物馆虚拟展厅，由 Electron 以桌面窗口方式运行",
   "main": "main.js",
   "scripts": {
     "web": "node server.js",
-    "start": "electron ."
+    "start": "electron .",
+    "pack:win": "node scripts/package.js",
+    "dist": "electron-builder --win",
+    "dist:dir": "electron-builder --win --dir"
   },
   "dependencies": {
     "three": "^0.170.0"
   },
   "devDependencies": {
-    "electron": "^33.0.0"
+    "electron": "^33.0.0",
+    "electron-builder": "^26.15.3"
   },
   "allowScripts": {
     "electron@33.4.11": true
+  },
+  "author": "virtual-museum",
+  "build": {
+    "appId": "com.virtualmuseum.hubei",
+    "productName": "湖北省博物馆虚拟展厅",
+    "directories": {
+      "output": "release/installer",
+      "buildResources": "assets"
+    },
+    "asar": true,
+    "files": [
+      "main.js",
+      "index.html",
+      "styles.css",
+      "package.json",
+      "src/**/*",
+      "assets/**/*",
+      {
+        "from": "node_modules/three",
+        "to": "node_modules/three",
+        "filter": [
+          "build/**/*",
+          "examples/jsm/**/*",
+          "package.json",
+          "LICENSE"
+        ]
+      }
+    ],
+    "win": {
+      "icon": "assets/icon.ico",
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "湖北省博物馆虚拟展厅",
+      "artifactName": "virtual-museum-${version}-setup.${ext}"
+    },
+    "portable": {
+      "artifactName": "virtual-museum-${version}-portable.${ext}"
+    },
+    "electronDist": "node_modules/electron/dist",
+    "electronVersion": "33.4.11"
   }
 }
