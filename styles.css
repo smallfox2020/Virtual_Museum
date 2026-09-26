@@ -1472,3 +1472,14 @@ kbd {
 .check-toggle[aria-checked='true'] .check-state {
   color: #e8c96a;
 }
+
+/* 展品侦探：重置积分按钮。破坏性操作，给一点红色提示，与旁边的功能按钮区分开 */
+.quiz-reset {
+  border-color: #8c3a33;
+  color: #c96a60;
+}
+.quiz-reset:hover {
+  background: rgba(140, 58, 51, 0.18);
+  border-color: #c96a60;
+  color: #e08b80;
+}

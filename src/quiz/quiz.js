@@ -588,6 +588,15 @@ export function createQuiz({ puzzles, thumbnail, speak, onReveal, onSpatialHint,
 
   $('quiz-start').addEventListener('click', () => startRound(false));
   $('quiz-daily').addEventListener('click', () => startRound(true));
+
+  // 重置积分：不可撤销，所以先弹一次确认，并说清楚会清掉什么。
+  // state.reset() 会同时清空积分、图鉴、连胜、每日记录与逐题统计。
+  $('quiz-reset').addEventListener('click', () => {
+    const ok = window.confirm('确定重置吗？\n\n积分、展品图鉴、连胜、每日一猜记录都会清空，无法恢复。');
+    if (!ok) return;
+    state.reset();
+    renderMenu();   // 重新渲染菜单，顺手刷新底部的统计与等级
+  });
   $('quiz-codex-open').addEventListener('click', renderCodex);
   $('quiz-close-x').addEventListener('click', closeQuiz);
   $('quiz-exit').addEventListener('click', closeQuiz);
