@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { ARTIFACTS, createArtifactObject, buildChimeBells, materials } from './artifacts.js';
+import { createStructures } from './structures.js';
 import * as tex from './textures.js';
 
 /* ================================================================== */
@@ -86,13 +87,40 @@ const DOOR_SIGNS = [
 /* 书画立轴（长廊两侧墙）                                               */
 /* ------------------------------------------------------------------ */
 
-const SCROLL_KINDS = ['shanshui', 'zhuzi', 'shufa', 'huaniao', 'shanshui', 'shufa'];
-
+/**
+ * 长廊两侧共 16 幅，每幅的标题、说明、纹理种子都不同。
+ * 原来只有 4 条数据循环用：纹理靠 index 当种子其实不重复，
+ * 但标题和介绍每 4 幅就回到开头，看起来就是同一批画挂了两遍。
+ */
 const SCROLLS = [
   { kind: 'shanshui', title: '楚山烟雨图', tag: '立轴 · 纸本水墨', desc: '烟云横锁，远峰只用淡墨一抹。楚地多水，画家把「空」留给了江面，也留给了看画的人。' },
   { kind: 'zhuzi', title: '墨竹图轴', tag: '立轴 · 纸本墨笔', desc: '竹竿用中锋写出，节节分明；竹叶以「个」字、「介」字叠排，一笔下去便有风。' },
   { kind: 'huaniao', title: '梅花山雀图', tag: '立轴 · 纸本设色', desc: '梅枝自左下斜出，花朵用没骨法点染，一只山雀收翅立于枝头，整幅画的重心就落在它的爪上。' },
   { kind: 'shufa', title: '隶书对联', tag: '对联 · 纸本墨书', desc: '隶书横画「蚕头燕尾」，一字之中有一笔主笔舒展，其余笔画收敛，整幅便稳如磐石。' },
+  { kind: 'shanshui', title: '汉水秋汛图', tag: '立轴 · 绢本设色', desc: '江面用细笔勾出水纹，一层层推远。近岸两株杂树压住左下角，画面才不飘。' },
+  { kind: 'shufa', title: '篆书「江汉」二字', tag: '立轴 · 纸本墨书', desc: '小篆结体修长，笔画粗细几乎一致，转折处用圆转。两个字撑满整幅，留白比字本身更难。' },
+  { kind: 'huaniao', title: '荷塘双鹤图', tag: '立轴 · 纸本设色', desc: '荷叶用大笔铺开，鹤身只用三笔勾出颈、背、足。工写相间，一只回头、一只引颈。' },
+  { kind: 'shanshui', title: '云梦泽图卷', tag: '立轴 · 纸本水墨', desc: '云梦泽在楚地文献里反复出现。画家用积墨表现水汽，近处芦苇一笔到底，远处只剩淡淡的影。' },
+  { kind: 'shufa', title: '行书七言联', tag: '对联 · 纸本墨书', desc: '行书行笔快，牵丝映带之间能看见手腕的动作。上下联末字一笔拉长，气就收住了。' },
+  { kind: 'zhuzi', title: '风竹图轴', tag: '立轴 · 纸本墨笔', desc: '整幅竹竿都向一边倒，是风的方向。竹叶用侧锋扫出，叶尖带出一点枯笔，最见风力。' },
+  { kind: 'huaniao', title: '残荷翠鸟图', tag: '立轴 · 纸本设色', desc: '荷叶已经破了，叶脉却更硬。翠鸟停在枯茎上，蓝绿的一小块是全幅唯一的亮色。' },
+  { kind: 'shanshui', title: '巫山十二峰', tag: '立轴 · 绢本设色', desc: '十二峰排成一列，靠浓淡拉开前后。中部留出一线天，观者的眼睛顺着它往上走。' },
+  { kind: 'shufa', title: '章草尺牍', tag: '尺牍 · 纸本墨书', desc: '章草还带着隶书的波磔，字与字之间并不相连。写在信笺上，行距比字距更宽。' },
+  { kind: 'zhuzi', title: '新竹图轴', tag: '立轴 · 纸本墨笔', desc: '画的是刚解箨的嫩竹，竹叶短而密，竿上还带着白粉。淡墨画竿、浓墨点叶，层次就出来了。' },
+  { kind: 'shanshui', title: '岘山怀古图', tag: '立轴 · 纸本水墨', desc: '山石用披麻皴，一道一道叠上去。山脚下画了一个极小的人，尺度就全靠他立住了。' },
+  { kind: 'shufa', title: '草书歌乐诗残句', tag: '立轴 · 纸本墨书', desc: '残句只剩十字，笔势却一路到底。写到一半蘸墨，后半篇由浓转枯，反而更有节奏。' },
+];
+
+/** 序厅漏斗墙上的 8 件书法（两弧墙各 4 件，与长廊立轴不重复） */
+const FUNNEL_CALLIGRAPHY = [
+  { title: '楚国简牍选字', tag: '书法 · 简牍墨书', desc: '从包山、郭店出土的楚简上选下的十八个字。笔道一笔一顿，看不出后来楷书那种提按。' },
+  { title: '隶书「楚辞」节录', tag: '书法 · 纸本墨书', desc: '选《离骚》起首数句。隶书把篆书的圆转硬拗成方折，这一下就是书体史上最大的一步。' },
+  { title: '篆书「凤鸟」二字', tag: '书法 · 纸本墨书', desc: '楚人尚凤。两个字把鸟的尾羽拉得极长，写到收笔处几乎不分笔画与纹样。' },
+  { title: '楷书曾侯乙编钟铭摹写', tag: '书法 · 纸本墨书', desc: '临摹钟体上的乐律铭文。原字铸在钟上，笔画略肥；写到纸上反而要收一点才立得住。' },
+  { title: '行书「一钟双音」', tag: '书法 · 纸本墨书', desc: '四个字一气写完，中间「钟」字最后一竖拉长，把整幅的重心从左边移到了中间。' },
+  { title: '魏碑集字联', tag: '对联 · 纸本墨书', desc: '从北朝造像记里集出的字。方笔切入、棱角分明，与楚简的圆转是两种完全相反的写法。' },
+  { title: '草书涂鸦稿', tag: '书法 · 纸本墨书', desc: '一幅没写完的草稿，涂改都留着。看草书有时看的就是涂改处——那一下最放松。' },
+  { title: '楷书「江流有声」', tag: '书法 · 纸本墨书', desc: '八个字分两行。楷书看着容易，其实每一横的倾斜角度都要统一，差一点整篇就歪。' },
 ];
 
 /** 长廊两侧各 8 幅，避开 z = ±9.5 的两个门洞（门洞占 6.9 ~ 12.1） */
@@ -773,9 +801,10 @@ function buildPanel(scene, config, interactables) {
 /** 序厅里的小木台，上面放着一只签筒，靠近后按 E 打开抽签小游戏 */
 function buildFortuneStand(scene, colliders, interactables) {
   const m = materials();
-  // 放在长廊入口（z = 18，开口 x ∈ [-6, 6]）的东侧，背靠隔墙、正面朝序厅
-  const x = 7.6;
-  const z = 18.7;
+  // 放在最靠近长廊的四根石柱（±5.2, 24 与 ±5.2, 30）围出的中间，
+  // 与猜谜台面对面：正面朝 -x（转 -90° 后 +z 轴指向 -x）
+  const x = 4.1;
+  const z = 27;
   const group = new THREE.Group();
   group.position.set(x, 0, z);
 
@@ -855,8 +884,8 @@ function buildFortuneStand(scene, colliders, interactables) {
   );
   sign.position.set(0, 0.78, 0.365);
   group.add(sign);
-  // 默认朝 +z：不旋转即正面朝序厅内侧（游客从厅内走过来正对台面）
-  group.rotation.y = 0;
+  // 默认朝 +z，转 -90° 后面向 -x，正对西侧的猜谜台
+  group.rotation.y = -Math.PI / 2;
 
   scene.add(group);
   colliders.push({ x, z, radius: 0.75 });
@@ -877,9 +906,9 @@ function buildFortuneStand(scene, colliders, interactables) {
 /** 序厅里的斜面线索板，靠近后按 E 打开猜谜小游戏 */
 function buildDetectiveStand(scene, colliders, interactables) {
   const m = materials();
-  // 放在长廊入口西侧，与抽签台隔门对称
-  const x = -7.6;
-  const z = 18.7;
+  // 与抽签台面对面，在四根石柱中间：正面朝 +x
+  const x = -4.1;
+  const z = 27;
   const group = new THREE.Group();
   group.position.set(x, 0, z);
 
@@ -929,8 +958,8 @@ function buildDetectiveStand(scene, colliders, interactables) {
   panel.add(sign);
 
   group.add(panel);
-  // 默认朝 +z：不旋转即正面朝序厅内侧
-  group.rotation.y = 0;
+  // 默认朝 +z，转 +90° 后面向 +x，正对东侧的抽签台
+  group.rotation.y = Math.PI / 2;
   scene.add(group);
 
   colliders.push({ x, z, radius: 0.65 });
@@ -1015,6 +1044,332 @@ function buildPlanter(scene, colliders, x, z) {
   }
   scene.add(group);
   colliders.push({ x, z, radius: 0.8 });
+}
+
+/* ------------------------------------------------------------------ */
+/* 序厅：倾斜石柱阵 + 弧形回形墙（漏斗式开场）                           */
+/* 设计依据见 docs/scene-layout.md 第 1 节                               */
+/* ------------------------------------------------------------------ */
+
+const FRONT_HALL_LEAN_DEG = 4;   // 序厅石柱内倾角度（度）：0 笔直，正值内倾，负值外倾
+
+function buildFrontHall(struct) {
+  // 两道凹弧收成漏斗，把视线与动线压向长廊入口（z = 18, x ∈ [-6, 6]）。
+  // 弧心在 (±30, 18)、半径 23 m，取 15°~50° 那一段：
+  // 东侧从 (7.8, 24) 走到 (15.2, 35.6)，西侧镜像。
+  // 注意角度取的是「弧心到墙点」的方向，不是弧心到门的方向，
+  // 所以东侧是 165°→130°，与直觉相反。
+  const funnels = [
+    { cx: 30, a0: THREE.MathUtils.degToRad(165), a1: THREE.MathUtils.degToRad(130) },
+    { cx: -30, a0: THREE.MathUtils.degToRad(15), a1: THREE.MathUtils.degToRad(50) },
+  ];
+  for (const f of funnels) {
+    struct.arcWall({
+      cx: f.cx,
+      cz: 18,
+      radius: 23,
+      a0: f.a0,
+      a1: f.a1,
+      height: 4.5,
+      thickness: 0.35,
+      material: struct.plaster,
+      cap: struct.stoneDark,
+      hooks: 1,
+      hookLength: 1.4,
+    });
+  }
+
+  // 倾斜石柱阵：三对石柱在漏斗里排出通道感。
+  //
+  // 【要调倾斜，只改这一个数】FRONT_HALL_LEAN_DEG：
+  //     7  = 现在这样，柱顶向中轴内倾（漏斗往里收）
+  //     0  = 笔直的石柱
+  //    -7  = 向外倾（漏斗往外张开）
+  // 符号规律：rotation.z 为正，柱顶倒向 -x。所以东侧（+x）传正数、西侧传负数
+  // 就是「内倾」；把 side 的符号取反即变成外倾。
+  const lean = THREE.MathUtils.degToRad(FRONT_HALL_LEAN_DEG);
+  // 序厅天花板底面标高。留 1 cm 让开，严丝合缝贴着会 z-fighting 闪烁。
+  const ceiling = zone('entrance').height - 0.01;
+  for (const z of [24, 30, 36]) {
+    for (const side of [1, -1]) {
+      struct.column({ x: side * 5.2, z, r: 0.45, topY: ceiling, material: struct.stone, tiltZ: side * lean });
+    }
+  }
+}
+
+
+/* ------------------------------------------------------------------ */
+/* 其余六个厅的空间构筑（设计依据见 docs/scene-layout.md）              */
+/* ------------------------------------------------------------------ */
+
+/** 曾侯乙墓展厅：青铜巨柱 + 中心回环墙 + 四角放射短肢（地下宫殿的环绕朝圣） */
+function buildZenghouyiHall(struct) {
+  const ceiling = zone('zenghouyi').height;
+  // 两列展品在 x = -18.8 与 -11.4，正中是 -15.1。
+  // 回环墙收到 3 × 3 落在正中，四角正好是四根青铜巨柱 —— 墙和柱连成一个完整的回字。
+  // 原来墙是 4 × 4 且偏在 -15.5，一侧离展台只有 0.68 m，既挡视线又和柱子断开。
+  const cx = -15.1;
+  const cz = 9;
+  const half = 1.5;
+  for (const sx of [-1, 1]) {
+    for (const sz of [-1, 1]) {
+      struct.column({
+        x: cx + sx * half, z: cz + sz * half, r: 0.7, topY: ceiling,
+        material: struct.bronze, rings: 2,
+      });
+    }
+  }
+  struct.ringWall({
+    cx, cz, size: 3, height: 2.8,
+    material: struct.plaster, cap: struct.stoneDark, gap: 0.6,
+  });
+}
+
+/** 编钟厅：半圆剧场式的韵律柱（70°~110° 留空，不挡入口中轴） */
+function buildBellHall(struct) {
+  const ceiling = zone('bells').height;
+  for (const [a0, a1] of [[25, 70], [110, 155]]) {
+    struct.arcColonnade({
+      cx: 0, cz: -29, radius: 9, count: 4,
+      a0: THREE.MathUtils.degToRad(a0), a1: THREE.MathUtils.degToRad(a1),
+      r: 0.55, topY: ceiling, material: struct.stone, rings: 2,
+    });
+  }
+}
+
+/** 青铜器厅：十字回形墙 + 四角方柱（硬朗的珍珠项链式动线） */
+function buildBronzeHall(struct) {
+  // 缺口从 1.2 收到 0.6：墙段端头正好插进方柱，十字墙与柱子连成一体
+  // （原来留 1.2 的缺口，墙端离柱子还有 0.6 m，看起来是断开的）。
+  struct.ringWall({
+    cx: 15.1, cz: 9.5, size: 4, height: 2.8,
+    material: struct.plaster, cap: struct.stoneDark, gap: 0.6,
+  });
+  for (const sx of [-1, 1]) {
+    for (const sz of [-1, 1]) {
+      struct.pier({ x: 15.1 + sx * 2, z: 9.5 + sz * 2, size: 0.7, height: 3.6 });
+    }
+  }
+  // 十字：从环墙四边中点再向外伸一段，动线绕着它走
+  const stubs = [
+    [13.1, 9.5, 11.5, 9.5], [17.1, 9.5, 18.7, 9.5],
+    [15.1, 7.5, 15.1, 5.9], [15.1, 11.5, 15.1, 13.1],
+  ];
+  for (const [x0, z0, x1, z1] of stubs) {
+    struct.lineWall({ x0, z0, x1, z1, height: 2.8, material: struct.plaster, cap: struct.stoneDark });
+  }
+}
+
+/** 楚文化展厅：红黑木柱交替（蜿蜒流淌的浪漫梦境） */
+function buildChuHall(struct) {
+  const topY = zone('chu').height - 0.01;
+  // 原来排在 x = -17 / -13 两列，离展品（-18.8 与 -11.4）只有 1.8 m，挡视线。
+  // 收成一排落在两列展品的正中 x = -15.1，两侧各留 2.86 m 净距。
+  let index = 0;
+  for (const z of [-3.5, -7.5, -11.5, -15.5]) {
+    struct.column({
+      x: -15.1, z, r: 0.22, topY,
+      material: index % 2 ? struct.woodBlack : struct.woodRed,
+    });
+    index += 1;
+  }
+}
+
+/** 陶瓷厅：细密格栅柱 + 错层矮墙（阶梯递进的沉淀） */
+function buildCeramicHall(struct) {
+  const topY = zone('ceramic').height - 0.01;
+  // 两列展品在 x = 11.4 与 18.8，正中是 15.1 —— 格栅柱与矮墙都收在这里，
+  // 两侧各留 1.58 m，不再挡住展品（原来矮墙一直伸到 17.4，离展台只剩 0.78 m）。
+  for (const z of [-2, -17]) {
+    for (const x of [14.0, 16.2]) {
+      struct.column({ x, z, r: 0.22, topY, material: struct.lattice });
+    }
+  }
+  // 三道矮墙高度递进，中间留 1.2 m 过道
+  for (const [z, height] of [[-4, 1.1], [-9.5, 1.5], [-15, 1.9]]) {
+    struct.lineWall({ x0: 13.6, z0: z, x1: 14.5, z1: z, height, material: struct.plaster, cap: struct.stoneDark });
+    struct.lineWall({ x0: 15.7, z0: z, x1: 16.6, z1: z, height, material: struct.plaster, cap: struct.stoneDark });
+  }
+}
+
+/** 长廊：顶部的叠涩梁，压出光影节奏（避开中轴那条天窗） */
+function buildCorridorBeams(struct) {
+  for (const at of [-4.4, 4.4]) {
+    struct.beams({ axis: 'z', from: -15, to: 15, at, count: 6, width: 2.4, drop: 0.6 });
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* 序厅：漏斗弧墙上的书法展品                                           */
+/* ------------------------------------------------------------------ */
+
+/**
+ * 沿两道弧墙的内表面各挂 4 件书法，正面朝弧心（也就是朝厅内）。
+ * 弧墙参数必须与 buildFrontHall 保持一致：弧心 (±30, 18)、半径 23、厚 0.35。
+ */
+function buildFunnelCalligraphy(scene, interactables) {
+  const frameMaterial = new THREE.MeshStandardMaterial({ color: 0x5a4632, roughness: 0.6 });
+  const width = 1.15;
+  const height = 2.1;
+  const r = 23 - 0.35 / 2 - 0.07;   // 内表面再留 7cm 挂件余量
+  const arcs = [
+    { cx: 30, a0: 165, a1: 130 },
+    { cx: -30, a0: 15, a1: 50 },
+  ];
+  let index = 0;
+  for (const arc of arcs) {
+    for (let k = 0; k < 4; k += 1) {
+      const t = (k + 0.5) / 4;
+      const a = THREE.MathUtils.degToRad(arc.a0 + (arc.a1 - arc.a0) * t);
+      const data = FUNNEL_CALLIGRAPHY[index];
+      const group = new THREE.Group();
+      group.position.set(arc.cx + Math.cos(a) * r, 2.5, 18 + Math.sin(a) * r);
+      // 平面默认法线是 +z，要让它朝弧心：n = -(cos a, sin a)
+      group.rotation.y = Math.atan2(-Math.cos(a), -Math.sin(a));
+
+      const picture = new THREE.Mesh(
+        new THREE.PlaneGeometry(width, height),
+        new THREE.MeshStandardMaterial({
+          map: tex.makeScrollTexture('shufa', 40 + index),
+          roughness: 0.88,
+          emissive: 0x14120e,
+          emissiveIntensity: 0.4,
+        }),
+      );
+      group.add(picture);
+      for (const y of [height / 2 + 0.06, -height / 2 - 0.06]) {
+        const rod = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, width + 0.22, 12), frameMaterial);
+        rod.rotation.z = Math.PI / 2;
+        rod.position.set(0, y, 0);
+        group.add(rod);
+      }
+      scene.add(group);
+
+      const normal = new THREE.Vector3(0, 0, 1).applyAxisAngle(new THREE.Vector3(0, 1, 0), group.rotation.y);
+      interactables.push({
+        position: group.position.clone().addScaledVector(normal, 1.3).setY(1.6),
+        radius: 2.4,
+        title: data.title,
+        tag: data.tag,
+        desc: data.desc,
+        model: group,
+      });
+      index += 1;
+    }
+  }
+}
+
+/** 序厅漏斗弧墙「外表面」的展厅导览故事（弧墙参数同 buildFunnelCalligraphy） */
+const FUNNEL_STORIES = [
+  { title: '序厅 · 荆楚门户', subtitle: 'PREFACE', body: '序厅是天光最亮的地方。两道上收的弧墙把光线和脚步一起压向长廊入口，站在中间先别急着走——回头看一眼出口，尺度感就出来了。' },
+  { title: '长廊 · 光影长廊', subtitle: 'CORRIDOR', body: '长廊两侧挂着十六幅立轴，每走几步就换一幅。四个展厅的门洞都开在这条廊子上，展厅之间互不相通，看展的节奏由这条廊子控制。' },
+  { title: '曾侯乙墓展厅 · 地下乐宫', subtitle: 'ZENG HOU YI', body: '一九七八年，随州一个战备工地挖出了这座墓。四根青铜巨柱围成一座回环墙，象的是墓坑本身；尊盘、鉴缶、建鼓座都出在这里。' },
+  { title: '青铜器厅 · 礼乐之器', subtitle: 'RITUAL BRONZE', body: '鼎、簋、罍、卣、盘、匜——这些器物从来不是单独用的，而是一整套：用几个鼎、几件簋，直接对应墓主人的身份。' },
+  { title: '陶瓷厅 · 土与火', subtitle: 'CERAMICS', body: '从屈家岭的彩陶到元代的青花，中间隔了四千多年。陶器烧到一千度，瓷器要一千三百度以上，差别就在这一道温度上。' },
+  { title: '楚文化厅 · 巫风与浪漫', subtitle: 'CHU CULTURE', body: '楚人信巫、好祀、尚赤。漆器用红黑两色，红是朱砂、黑是烟灰；镇墓兽插着鹿角站在墓道里，是楚人对死后世界的一个想象。' },
+  { title: '编钟厅 · 一钟双音', subtitle: 'CHIME BELLS', body: '六十五件青铜钟悬在三层钟架上。敲钟的正鼓部和侧鼓部会发两个音，音域跨五个半八度。钟上的铭文有三千七百多字，记的是乐律。' },
+  { title: '湖北省博物馆 · 关于本馆', subtitle: 'ABOUT', body: '湖北省博物馆坐落在武昌东湖边，馆藏以楚文化和曾侯乙墓出土文物为大宗。这个虚拟展厅重建了其中六处空间，可以依次走完整条动线。' },
+];
+
+/**
+ * 弧墙外表面挂八块展厅导览展板（每弧 4 块）。
+ * 外表面朝远离弧心的方向，所以法线是 +(cos a, sin a)，
+ * 而内表面那扇立轴的法线是取负的——两面刚好背对背。
+ */
+function buildFunnelStories(scene, interactables) {
+  const frameMaterial = new THREE.MeshStandardMaterial({ color: 0x4a3a2a, roughness: 0.62 });
+  const width = 1.75;
+  const height = 1.15;
+  const r = 23 + 0.35 / 2 + 0.07;   // 外表面再留 7cm 挂件余量
+  const arcs = [
+    { cx: 30, a0: 165, a1: 130 },
+    { cx: -30, a0: 15, a1: 50 },
+  ];
+  let index = 0;
+  for (const arc of arcs) {
+    for (let k = 0; k < 4; k += 1) {
+      const t = (k + 0.5) / 4;
+      const a = THREE.MathUtils.degToRad(arc.a0 + (arc.a1 - arc.a0) * t);
+      const data = FUNNEL_STORIES[index];
+      const group = new THREE.Group();
+      group.position.set(arc.cx + Math.cos(a) * r, 2.35, 18 + Math.sin(a) * r);
+      group.rotation.y = Math.atan2(Math.cos(a), Math.sin(a));
+
+      const board = new THREE.Mesh(
+        new THREE.PlaneGeometry(width, height),
+        new THREE.MeshStandardMaterial({
+          map: tex.makePanelTexture({ ...data, layout: LAYOUT }),
+          roughness: 0.72,
+          emissive: 0x1a1712,
+          emissiveIntensity: 0.45,
+        }),
+      );
+      group.add(board);
+      const frame = new THREE.Mesh(new THREE.BoxGeometry(width + 0.12, height + 0.12, 0.06), frameMaterial);
+      frame.position.z = -0.04;
+      group.add(frame);
+      scene.add(group);
+
+      const normal = new THREE.Vector3(0, 0, 1).applyAxisAngle(new THREE.Vector3(0, 1, 0), group.rotation.y);
+      interactables.push({
+        position: group.position.clone().addScaledVector(normal, 1.5).setY(1.5),
+        radius: 2.4,
+        title: data.title,
+        tag: '序厅 · 展厅导览',
+        desc: data.body,
+        model: group,
+      });
+      index += 1;
+    }
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* 编钟厅：四角的小编钟架                                               */
+/* ------------------------------------------------------------------ */
+
+/** 一具小编钟架：两根立柱 + 横梁 + 四枚扁钟（纯陈设，不做交互） */
+function buildBellRack(scene, colliders, x, z, rotationY = 0) {
+  const m = materials();
+  const wood = new THREE.MeshStandardMaterial({ color: 0x4a3423, roughness: 0.6 });
+  const group = new THREE.Group();
+  group.position.set(x, 0, z);
+  group.rotation.y = rotationY;
+
+  for (const dx of [-1.15, 1.15]) {
+    const post = new THREE.Mesh(new THREE.BoxGeometry(0.24, 2.9, 0.24), wood);
+    post.position.set(dx, 1.45, 0);
+    post.castShadow = true;
+    group.add(post);
+  }
+  const beam = new THREE.Mesh(new THREE.BoxGeometry(2.8, 0.28, 0.32), wood);
+  beam.position.y = 2.98;
+  beam.castShadow = true;
+  group.add(beam);
+
+  for (let i = 0; i < 4; i += 1) {
+    const bx = -0.9 + i * 0.6;
+    const h = 0.56 - i * 0.07;
+    // 扁钟：上窄下宽，再压扁成钟形
+    const bell = new THREE.Mesh(new THREE.CylinderGeometry(h * 0.34, h * 0.52, h, 16), m.bronze);
+    bell.scale.set(1, 1, 0.62);
+    bell.position.set(bx, 2.84 - h / 2, 0);
+    bell.castShadow = true;
+    group.add(bell);
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(0.06, 0.016, 6, 14), m.gold);
+    ring.position.set(bx, 2.88, 0);
+    group.add(ring);
+  }
+  scene.add(group);
+  colliders.push({ x, z, radius: 1.5 });
+}
+
+/** 编钟厅四角各放一具小编钟架，填补左右两角的空处 */
+function buildBellHallCorners(scene, colliders) {
+  for (const side of [1, -1]) {
+    buildBellRack(scene, colliders, side * 20.4, -20.8, side > 0 ? -0.5 : 0.5);
+    buildBellRack(scene, colliders, side * 20.4, -37.2, side > 0 ? 0.5 : -0.5);
+  }
 }
 
 /* ================================================================== */
@@ -1203,14 +1558,29 @@ export function createMuseum(scene) {
 
   buildShell(scene);
   buildPartitions(scene, colliders);
+
+  // 空间构筑件：柱子、弧形回形墙、台基、叠涩梁。
+  // 设计依据见 docs/scene-layout.md（「光影长廊，楚韵洄游」）。
+  const struct = createStructures({ scene, colliders, materials: materials(), tex });
+  buildFrontHall(struct);
+  buildZenghouyiHall(struct);
+  buildBellHall(struct);
+  buildBronzeHall(struct);
+  buildChuHall(struct);
+  buildCeramicHall(struct);
+  buildCorridorBeams(struct);
+  buildFunnelCalligraphy(scene, interactables);
+  buildFunnelStories(scene, interactables);
+  buildBellHallCorners(scene, colliders);
   buildScrolls(scene, interactables);
   buildFortuneStand(scene, colliders, interactables);
 
   // 序厅：两侧长凳与花器
   buildBench(scene, colliders, -15, 22, 0);
   buildBench(scene, colliders, 15, 22, 0);
-  buildBench(scene, colliders, -15, 36, 0);
-  buildBench(scene, colliders, 15, 36, 0);
+  // 长凳让开序厅的漏斗弧墙（原来在 z = 36，紧贴弧墙端头）
+  buildBench(scene, colliders, -15, 31, 0);
+  buildBench(scene, colliders, 15, 31, 0);
   // 花器给「展厅平面图」两侧的新展品让位（原来在 ±7.5，和展台只差 2.9 m）
   buildPlanter(scene, colliders, -11.5, 38.6);
   buildPlanter(scene, colliders, 11.5, 38.6);
