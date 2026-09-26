@@ -824,7 +824,9 @@ kbd {
 #hud.quiz-open #hint,
 #hud.quiz-open #stats,
 #hud.fortune-open #minimap,
-#hud.quiz-open #minimap {
+#hud.quiz-open #minimap,
+#hud.fortune-open #room-title,
+#hud.quiz-open #room-title {
   opacity: 0;
   visibility: hidden;
 }
@@ -1403,6 +1405,58 @@ kbd {
   background: rgba(10, 12, 18, 0.78);
   box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5);
   pointer-events: none;
+}
+
+/* ---------------- 进房标题 ---------------- */
+
+#room-title {
+  position: fixed;
+  left: 50%;
+  top: 42%;
+  transform: translate(-50%, -50%);
+  z-index: 3;
+  text-align: center;
+  pointer-events: none;
+}
+
+#room-title span {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 12px;
+  letter-spacing: 8px;
+  color: #d8a04a;
+}
+
+#room-title strong {
+  display: block;
+  font-size: 46px;
+  font-weight: 600;
+  letter-spacing: 12px;
+  color: #f6efdd;
+  text-shadow: 0 8px 30px rgba(0, 0, 0, 0.7);
+}
+
+#room-title.show {
+  animation: room-title 1.6s ease forwards;
+}
+
+@keyframes room-title {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -46%) scale(0.96);
+  }
+  14% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+  48% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -52%) scale(1);
+  }
 }
 
 .hidden {

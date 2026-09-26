@@ -98,6 +98,19 @@
           <span class="check-label">小地图</span>
           <span class="check-state" id="minimap-state">关闭</span>
         </button>
+        <button
+          id="roomtitle-toggle"
+          class="check-toggle"
+          type="button"
+          role="checkbox"
+          aria-checked="false"
+        >
+          <span class="check-box" aria-hidden="true">
+            <svg viewBox="0 0 24 24"><path d="M4.5 12.5l5 5 10-11" /></svg>
+          </span>
+          <span class="check-label">进房提示</span>
+          <span class="check-state" id="roomtitle-state">关闭</span>
+        </button>
         <p class="setting-note">背景音乐由 WebAudio 实时合成（五声音阶拨弦 + 厅堂混响），不需要任何音频文件。</p>
       </section>
 
@@ -138,6 +151,7 @@
       </div>
 
       <canvas id="minimap" class="hidden"></canvas>
+      <div id="room-title" class="hidden"></div>
     </div>
 
     <div id="inspect" class="hidden">

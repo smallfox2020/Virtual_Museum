@@ -9,6 +9,7 @@ import { createArtifactObject } from './artifacts.js';
 import { createAudio } from './audio.js';
 import { createReader } from './reader.js';
 import { createMinimap } from './minimap.js';
+import { createRoomTitle } from './roomtitle.js';
 import { createQuiz } from './quiz/quiz.js';
 import { createThumbnailer } from './thumbnails.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
@@ -46,6 +47,7 @@ const fortune = createFortune({
 const audio = createAudio();
 const reader = createReader();
 const minimap = createMinimap({ layout: LAYOUT });
+const roomTitle = createRoomTitle({ zones: LAYOUT.zones });
 
 const player = new Player({
   scene,
@@ -167,6 +169,11 @@ function bindCheckToggle(buttonId, stateId, onChange) {
 bindCheckToggle('minimap-toggle', 'minimap-state', (on) => {
   minimap.setVisible(on);
   hud.showToast(on ? '小地图已开启' : '小地图已关闭');
+});
+
+bindCheckToggle('roomtitle-toggle', 'roomtitle-state', (on) => {
+  roomTitle.setEnabled(on);
+  hud.showToast(on ? '进入房间时会显示房间名' : '已关闭进房提示');
 });
 
 document.addEventListener('mousedown', (event) => {
@@ -544,6 +551,7 @@ function frame() {
   museum.update(dt, elapsed);
 
   minimap.update(player);
+  if (!blockInput && !cinematic.active) roomTitle.update(dt, player.position);
 
   // 高亮光圈与灯光
   if (highlight?.userData.active) {
@@ -585,4 +593,4 @@ function frame() {
 requestAnimationFrame(frame);
 
 // 方便在浏览器控制台里调试：window.museumApp.museum / .player / .audio ...
-window.museumApp = { scene, camera, renderer, museum, player, input, hud, inspector, fortune, quiz, audio, reader, thumbnail, puzzles, minimap };
+window.museumApp = { scene, camera, renderer, museum, player, input, hud, inspector, fortune, quiz, audio, reader, thumbnail, puzzles, minimap, roomTitle };
