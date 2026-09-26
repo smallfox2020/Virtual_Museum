@@ -85,6 +85,19 @@
           <span class="check-label">朗读器</span>
           <span class="check-state" id="reader-state">未启用</span>
         </button>
+        <button
+          id="minimap-toggle"
+          class="check-toggle"
+          type="button"
+          role="checkbox"
+          aria-checked="false"
+        >
+          <span class="check-box" aria-hidden="true">
+            <svg viewBox="0 0 24 24"><path d="M4.5 12.5l5 5 10-11" /></svg>
+          </span>
+          <span class="check-label">小地图</span>
+          <span class="check-state" id="minimap-state">关闭</span>
+        </button>
         <p class="setting-note">背景音乐由 WebAudio 实时合成（五声音阶拨弦 + 厅堂混响），不需要任何音频文件。</p>
       </section>
 
@@ -123,6 +136,8 @@
           <p class="overlay-sub">走近展品按 E 查看介绍 · 按 O 单独观察器物 · 序厅的摇签台可摇签问古，线索板可玩展品侦探猜谜 · 按 V 切换第一 / 第三人称 · 右上角可开关音乐与调节音量</p>
         </div>
       </div>
+
+      <canvas id="minimap" class="hidden"></canvas>
     </div>
 
     <div id="inspect" class="hidden">

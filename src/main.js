@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { createMuseum, ROOM } from './museum.js';
+import { createMuseum, ROOM, LAYOUT } from './museum.js';
 import { Input } from './input.js';
 import { Player } from './player.js';
 import { createHud } from './hud.js';
@@ -8,6 +8,7 @@ import { createFortune } from './fortune.js';
 import { createArtifactObject } from './artifacts.js';
 import { createAudio } from './audio.js';
 import { createReader } from './reader.js';
+import { createMinimap } from './minimap.js';
 import { createQuiz } from './quiz/quiz.js';
 import { createThumbnailer } from './thumbnails.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
@@ -44,6 +45,7 @@ const fortune = createFortune({
 });
 const audio = createAudio();
 const reader = createReader();
+const minimap = createMinimap({ layout: LAYOUT });
 
 const player = new Player({
   scene,
@@ -140,6 +142,31 @@ readerToggle.addEventListener('click', (event) => {
   reader.toggle();
   applyReaderUI();
   hud.showToast(reader.isEnabled() ? '朗读器已启用 · 在界面内按 L 朗读' : '朗读器已关闭');
+});
+
+/* ---------- 设置面板：小地图 ---------- */
+
+function bindCheckToggle(buttonId, stateId, onChange) {
+  const button = document.getElementById(buttonId);
+  const state = document.getElementById(stateId);
+  let value = false;
+  const render = () => {
+    button.setAttribute('aria-checked', value ? 'true' : 'false');
+    state.textContent = value ? '开启' : '关闭';
+  };
+  button.addEventListener('click', (event) => {
+    event.stopPropagation();
+    value = !value;
+    render();
+    onChange(value);
+  });
+  render();
+  return { isOn: () => value };
+}
+
+bindCheckToggle('minimap-toggle', 'minimap-state', (on) => {
+  minimap.setVisible(on);
+  hud.showToast(on ? '小地图已开启' : '小地图已关闭');
 });
 
 document.addEventListener('mousedown', (event) => {
@@ -516,6 +543,8 @@ function frame() {
   player.update(dt, camera, input, !blockInput);
   museum.update(dt, elapsed);
 
+  minimap.update(player);
+
   // 高亮光圈与灯光
   if (highlight?.userData.active) {
     const u = highlight.userData;
@@ -556,4 +585,4 @@ function frame() {
 requestAnimationFrame(frame);
 
 // 方便在浏览器控制台里调试：window.museumApp.museum / .player / .audio ...
-window.museumApp = { scene, camera, renderer, museum, player, input, hud, inspector, fortune, quiz, audio, reader, thumbnail, puzzles };
+window.museumApp = { scene, camera, renderer, museum, player, input, hud, inspector, fortune, quiz, audio, reader, thumbnail, puzzles, minimap };

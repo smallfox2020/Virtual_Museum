@@ -822,7 +822,9 @@ kbd {
 #hud.quiz-open #overlay,
 #hud.quiz-open #prompt,
 #hud.quiz-open #hint,
-#hud.quiz-open #stats {
+#hud.quiz-open #stats,
+#hud.fortune-open #minimap,
+#hud.quiz-open #minimap {
   opacity: 0;
   visibility: hidden;
 }
@@ -1387,6 +1389,20 @@ kbd {
 #quiz.hunt .quiz-foot #quiz-hint,
 #quiz.hunt .quiz-foot #quiz-reveal {
   display: none;
+}
+
+/* ---------------- 小地图 ---------------- */
+
+#minimap {
+  position: fixed;
+  right: 22px;
+  bottom: 22px;
+  z-index: 3;
+  border: 1px solid #43302a;
+  border-radius: 12px;
+  background: rgba(10, 12, 18, 0.78);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5);
+  pointer-events: none;
 }
 
 .hidden {

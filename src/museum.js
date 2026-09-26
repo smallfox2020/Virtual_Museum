@@ -838,7 +838,7 @@ function buildLights(scene) {
 /* 导览图数据                                                          */
 /* ================================================================== */
 
-const LAYOUT = {
+export const LAYOUT = {
   halfX: ROOM.halfX,
   halfZ: ROOM.halfZ,
   zones: ZONES,
