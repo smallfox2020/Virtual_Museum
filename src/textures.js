@@ -69,40 +69,373 @@ function seal(ctx, x, y, size, text = '藏') {
   ctx.fillText(text, x + size / 2, y + size / 2 + 1);
 }
 
+
+/* ------------------------------------------------------------------ */
+/* 由灰度推导法线贴图与粗糙度贴图                                      */
+/*                                                                     */
+/* 这是「让平面材质看起来有细节」性价比最高的手段：从颜色图的明暗       */
+/* 反推高度场，再用 Sobel 差分求法线，平墙平地上就能出现勾缝、颗粒、     */
+/* 笔触的立体感。采样按模运算环绕，保证平铺无缝。                       */
+/* ------------------------------------------------------------------ */
+
+/** @param {HTMLCanvasElement} source 颜色贴图 @param {number} strength 起伏强度 */
+export function makeNormalMap(source, strength = 2.2) {
+  const w = source.width;
+  const h = source.height;
+  const src = source.getContext('2d').getImageData(0, 0, w, h).data;
+  const { canvas, ctx } = makeCanvas(w, h);
+  const out = ctx.createImageData(w, h);
+
+  const heightAt = (x, y) => {
+    const i = (((y % h) + h) % h) * w + (((x % w) + w) % w);
+    const p = i * 4;
+    // 感知亮度当高度场
+    return (src[p] * 0.299 + src[p + 1] * 0.587 + src[p + 2] * 0.114) / 255;
+  };
+
+  for (let y = 0; y < h; y += 1) {
+    for (let x = 0; x < w; x += 1) {
+      const dx = (heightAt(x + 1, y) - heightAt(x - 1, y)) * strength;
+      const dy = (heightAt(x, y + 1) - heightAt(x, y - 1)) * strength;
+      // 图像 y 向下，法线的 y 取正号即 OpenGL 约定（three.js 用这套）
+      const nx = -dx;
+      const ny = dy;
+      const nz = 1;
+      const len = Math.hypot(nx, ny, nz) || 1;
+      const i = (y * w + x) * 4;
+      out.data[i] = ((nx / len) * 0.5 + 0.5) * 255;
+      out.data[i + 1] = ((ny / len) * 0.5 + 0.5) * 255;
+      out.data[i + 2] = ((nz / len) * 0.5 + 0.5) * 255;
+      out.data[i + 3] = 255;
+    }
+  }
+  ctx.putImageData(out, 0, 0);
+  return canvas;
+}
+
+/** 粗糙度贴图：暗的地方光滑（抛光石材）、亮的地方粗糙（勾缝、灰浆） */
+export function makeRoughnessMap(source, min = 0.18, max = 0.95) {
+  const w = source.width;
+  const h = source.height;
+  const src = source.getContext('2d').getImageData(0, 0, w, h).data;
+  const { canvas, ctx } = makeCanvas(w, h);
+  const out = ctx.createImageData(w, h);
+  for (let i = 0; i < src.length; i += 4) {
+    const lum = (src[i] * 0.299 + src[i + 1] * 0.587 + src[i + 2] * 0.114) / 255;
+    const value = (1 - lum) * (max - min) + min;
+    const v = Math.round(value * 255);
+    out.data[i] = v;
+    out.data[i + 1] = v;
+    out.data[i + 2] = v;
+    out.data[i + 3] = 255;
+  }
+  ctx.putImageData(out, 0, 0);
+  return canvas;
+}
+
+/* ------------------------------------------------------------------ */
+/* 建筑表面                                                            */
+/* ------------------------------------------------------------------ */
+
+/** 石材地面：一张贴图铺 4 × 4 块大板，带勾缝、云纹与斑晶 */
+export function makeStoneFloorCanvas() {
+  const size = 1024;
+  const { canvas, ctx } = makeCanvas(size, size);
+  const cell = size / 4;
+
+  ctx.fillStyle = '#b3aca0';
+  ctx.fillRect(0, 0, size, size);
+
+  // 每块石板略有色差
+  for (let gy = 0; gy < 4; gy += 1) {
+    for (let gx = 0; gx < 4; gx += 1) {
+      const tint = 0.94 + ((gx * 7 + gy * 13) % 5) * 0.022;
+      ctx.fillStyle = `rgba(${Math.round(196 * tint)}, ${Math.round(188 * tint)}, ${Math.round(174 * tint)}, 1)`;
+      ctx.fillRect(gx * cell + 2, gy * cell + 2, cell - 4, cell - 4);
+    }
+  }
+
+  // 云纹：几条半透明的曲线，模拟大理石纹路
+  ctx.lineWidth = 3;
+  for (let i = 0; i < 26; i += 1) {
+    const y0 = Math.random() * size;
+    ctx.strokeStyle = Math.random() < 0.5 ? 'rgba(255,255,255,0.16)' : 'rgba(120,112,100,0.14)';
+    ctx.beginPath();
+    ctx.moveTo(0, y0);
+    for (let x = 0; x <= size; x += 32) {
+      ctx.lineTo(x, y0 + Math.sin(x / 90 + i) * 14 + Math.cos(x / 37 + i * 2) * 6);
+    }
+    ctx.stroke();
+  }
+
+  // 斑晶：深浅两种小颗粒
+  for (let i = 0; i < 5200; i += 1) {
+    const x = Math.random() * size;
+    const y = Math.random() * size;
+    const r = 0.6 + Math.random() * 1.8;
+    ctx.fillStyle = Math.random() < 0.5 ? 'rgba(255,255,255,0.5)' : 'rgba(96,90,80,0.34)';
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // 勾缝：先画深色底，再压一道浅色高光，法线贴图会把它变成凹槽
+  ctx.strokeStyle = '#6d675c';
+  ctx.lineWidth = 7;
+  for (let i = 0; i <= 4; i += 1) {
+    const p = i * cell;
+    ctx.beginPath(); ctx.moveTo(p, 0); ctx.lineTo(p, size); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0, p); ctx.lineTo(size, p); ctx.stroke();
+  }
+  ctx.strokeStyle = 'rgba(255,255,255,0.34)';
+  ctx.lineWidth = 2;
+  for (let i = 0; i <= 4; i += 1) {
+    const p = i * cell + 4;
+    ctx.beginPath(); ctx.moveTo(p, 0); ctx.lineTo(p, size); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0, p); ctx.lineTo(size, p); ctx.stroke();
+  }
+
+  return canvas;
+}
+
+/** 青铜器纹样变体：0 云雷纹 / 1 兽面纹 / 2 蟠螭纹 / 3 素面带锈 */
+export function makeBronzeCanvas(variant = 0) {
+  const w = 1024;
+  const h = 1024;
+  const { canvas, ctx } = makeCanvas(w, h);
+
+  const bases = ['#82957c', '#7d8b84', '#8a8f78', '#8b9285'];
+  ctx.fillStyle = bases[variant % bases.length];
+  ctx.fillRect(0, 0, w, h);
+
+  if (variant === 0) {
+    // 云雷纹：回字形螺旋，两种尺寸交错
+    ctx.strokeStyle = 'rgba(38, 52, 42, 0.5)';
+    for (let gy = 0; gy < 8; gy += 1) {
+      for (let gx = 0; gx < 8; gx += 1) {
+        const cx = gx * 128 + 64;
+        const cy = gy * 128 + 64;
+        const dir = (gx + gy) % 2 === 0 ? 1 : -1;
+        ctx.lineWidth = 7;
+        for (let i = 0; i < 5; i += 1) {
+          const r = 48 - i * 9;
+          ctx.beginPath();
+          ctx.moveTo(cx + dir * r, cy - r);
+          ctx.lineTo(cx + dir * r, cy + r);
+          ctx.lineTo(cx - dir * r, cy + r);
+          ctx.lineTo(cx - dir * r, cy - r + 10);
+          ctx.stroke();
+        }
+      }
+    }
+  } else if (variant === 1) {
+    // 兽面纹：中央对称的双眼 + 角 + 云雷地
+    ctx.strokeStyle = 'rgba(34, 46, 38, 0.55)';
+    ctx.lineWidth = 5;
+    for (let gy = 0; gy < 16; gy += 1) {
+      for (let gx = 0; gx < 16; gx += 1) {
+        const cx = gx * 64 + 32;
+        const cy = gy * 64 + 32;
+        ctx.beginPath();
+        ctx.arc(cx, cy, 16, 0, Math.PI * 1.5);
+        ctx.stroke();
+      }
+    }
+    for (let face = 0; face < 4; face += 1) {
+      const ox = (face % 2) * 512 + 256;
+      const oy = Math.floor(face / 2) * 512 + 256;
+      ctx.strokeStyle = 'rgba(26, 36, 30, 0.85)';
+      ctx.lineWidth = 11;
+      // 双目
+      for (const side of [-1, 1]) {
+        ctx.beginPath();
+        ctx.ellipse(ox + side * 62, oy - 10, 34, 20, 0, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.arc(ox + side * 62, oy - 10, 9, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+      // 鼻梁与角
+      ctx.beginPath();
+      ctx.moveTo(ox, oy - 54);
+      ctx.lineTo(ox, oy + 62);
+      ctx.stroke();
+      for (const side of [-1, 1]) {
+        ctx.beginPath();
+        ctx.moveTo(ox + side * 20, oy - 56);
+        ctx.quadraticCurveTo(ox + side * 98, oy - 96, ox + side * 120, oy - 20);
+        ctx.stroke();
+      }
+    }
+  } else if (variant === 2) {
+    // 蟠螭纹：密集的缠绕曲线
+    ctx.strokeStyle = 'rgba(30, 44, 36, 0.5)';
+    for (let i = 0; i < 240; i += 1) {
+      const x = Math.random() * w;
+      const y = Math.random() * h;
+      const r = 14 + Math.random() * 40;
+      ctx.lineWidth = 3 + Math.random() * 4;
+      ctx.beginPath();
+      ctx.arc(x, y, r, Math.random() * Math.PI, Math.random() * Math.PI + 2);
+      ctx.stroke();
+    }
+  }
+  // variant 3 是素面：只保留下面的锈色
+
+  // 锈色斑驳：各变体都有，但深浅不同
+  const rust = variant === 3 ? 0.28 : 0.16;
+  for (let i = 0; i < 320; i += 1) {
+    const x = Math.random() * w;
+    const y = Math.random() * h;
+    const r = 6 + Math.random() * 54;
+    const tone = Math.random();
+    ctx.fillStyle = tone < 0.4
+      ? `rgba(74, 132, 104, ${rust})`
+      : tone < 0.75
+        ? `rgba(176, 146, 84, ${rust * 0.8})`
+        : `rgba(52, 44, 38, ${rust * 0.6})`;
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  // 高光磨损
+  for (let i = 0; i < 160; i += 1) {
+    ctx.fillStyle = `rgba(226, 220, 190, ${0.05 + Math.random() * 0.07})`;
+    ctx.beginPath();
+    ctx.ellipse(Math.random() * w, Math.random() * h, 6 + Math.random() * 26, 4 + Math.random() * 10, Math.random() * 3, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  return canvas;
+}
+
+/**
+ * 墙面变体：**底色完全相同，只有表面细节不同**。
+ *
+ * 之前 4 个变体连颜色一起换（米白/暖砂/浅灰/深黑），同一个大厅里出现黑白灰混搭，
+ * 看起来像贴错图。现在统一用米白抹灰底，只让「抹刀痕 / 砂粒 / 对缝 / 竖纹」这些
+ * 细节产生差别，观感上是同一面墙的不同做法。
+ */
+export function makeWallCanvas(variant = 0) {
+  const size = 512;
+  const { canvas, ctx } = makeCanvas(size, size);
+  ctx.fillStyle = '#ddd6c9';
+  ctx.fillRect(0, 0, size, size);
+
+  if (variant === 2) {
+    // 石材对缝：两行两列大板，缝很浅
+    ctx.strokeStyle = 'rgba(150,144,132,0.42)';
+    ctx.lineWidth = 4;
+    for (let i = 0; i <= 2; i += 1) {
+      const p2 = (i * size) / 2;
+      ctx.beginPath(); ctx.moveTo(p2, 0); ctx.lineTo(p2, size); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(0, p2); ctx.lineTo(size, p2); ctx.stroke();
+    }
+    for (let i = 0; i < 22; i += 1) {
+      ctx.strokeStyle = Math.random() < 0.5 ? 'rgba(255,255,255,0.1)' : 'rgba(146,140,128,0.09)';
+      ctx.lineWidth = 1 + Math.random() * 3;
+      const y = Math.random() * size;
+      ctx.beginPath();
+      ctx.moveTo(0, y);
+      for (let x = 0; x <= size; x += 26) ctx.lineTo(x, y + Math.sin(x / 50 + i) * 5);
+      ctx.stroke();
+    }
+  } else if (variant === 3) {
+    // 竖向细纹：浅槽，不改色调
+    for (let x = 0; x < size; x += 16) {
+      ctx.fillStyle = x % 32 === 0 ? 'rgba(255,255,255,0.055)' : 'rgba(120,112,100,0.075)';
+      ctx.fillRect(x, 0, 6, size);
+    }
+  } else {
+    // 抹刀痕（variant 1 更密）
+    const rounds = variant === 1 ? 22 : 14;
+    for (let i = 0; i < rounds; i += 1) {
+      ctx.strokeStyle = `rgba(255,255,255,${0.05 + Math.random() * 0.05})`;
+      ctx.lineWidth = 24;
+      const y = Math.random() * size;
+      ctx.beginPath();
+      ctx.moveTo(-20, y);
+      ctx.quadraticCurveTo(size / 2, y + (Math.random() - 0.5) * 120, size + 20, y + (Math.random() - 0.5) * 60);
+      ctx.stroke();
+    }
+    for (let i = 0; i < 10; i += 1) {
+      ctx.strokeStyle = `rgba(150,142,128,${0.04 + Math.random() * 0.05})`;
+      ctx.lineWidth = 18;
+      const x = Math.random() * size;
+      ctx.beginPath();
+      ctx.moveTo(x, -20);
+      ctx.quadraticCurveTo(x + (Math.random() - 0.5) * 100, size / 2, x + (Math.random() - 0.5) * 60, size + 20);
+      ctx.stroke();
+    }
+  }
+
+  // 细颗粒：密度随变体变化，颜色不改
+  const grain = variant === 1 ? 0.24 : 0.2;
+  for (let i = 0; i < 9000; i += 1) {
+    const x = Math.random() * size;
+    const y = Math.random() * size;
+    ctx.fillStyle = Math.random() < 0.5
+      ? `rgba(255,255,255,${grain})`
+      : `rgba(150,142,128,${grain * 0.7})`;
+    ctx.fillRect(x, y, 1.3, 1.3);
+  }
+
+  // 剥落墙皮：只在抹灰面上出现
+  if (variant === 0 || variant === 1) {
+    for (let i = 0; i < 26; i += 1) {
+      const x = Math.random() * size;
+      const y = Math.random() * size;
+      const r = 2 + Math.random() * 9;
+      ctx.fillStyle = 'rgba(200,192,178,0.42)';
+      ctx.beginPath();
+      ctx.ellipse(x, y, r, r * (0.5 + Math.random() * 0.7), Math.random() * 3, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,0.25)';
+      ctx.beginPath();
+      ctx.ellipse(x - 1, y - 1, r * 0.7, r * 0.45, Math.random() * 3, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+  return canvas;
+}
+
+/** 深色石材墙裙 */
+export function makeSkirtingCanvas() {
+  const size = 512;
+  const { canvas, ctx } = makeCanvas(size, size);
+  ctx.fillStyle = '#3a3f47';
+  ctx.fillRect(0, 0, size, size);
+
+  for (let i = 0; i < 40; i += 1) {
+    ctx.strokeStyle = Math.random() < 0.5 ? 'rgba(255,255,255,0.07)' : 'rgba(12,14,18,0.18)';
+    ctx.lineWidth = 1 + Math.random() * 3;
+    const y = Math.random() * size;
+    ctx.beginPath();
+    ctx.moveTo(0, y);
+    for (let x = 0; x <= size; x += 24) ctx.lineTo(x, y + Math.sin(x / 60 + i) * 7);
+    ctx.stroke();
+  }
+  for (let i = 0; i < 3600; i += 1) {
+    const x = Math.random() * size;
+    const y = Math.random() * size;
+    ctx.fillStyle = Math.random() < 0.5 ? 'rgba(255,255,255,0.10)' : 'rgba(0,0,0,0.16)';
+    ctx.fillRect(x, y, 1.4, 1.4);
+  }
+  // 顶部一道亮边（被磨光的位置）
+  ctx.fillStyle = 'rgba(255,255,255,0.12)';
+  ctx.fillRect(0, 0, size, 5);
+  return canvas;
+}
+
 /* ------------------------------------------------------------------ */
 /* 建筑贴图                                                            */
 /* ------------------------------------------------------------------ */
 
-/** 石材地面：每张贴图 2 × 2 块砖 */
+/** 石材地面贴图（一张铺 4 × 4 块板，法线与粗糙度由颜色图推导） */
 export function makeFloorTexture(repeatX, repeatY) {
-  const size = 256;
-  const { canvas, ctx } = makeCanvas(size, size);
-  ctx.fillStyle = '#b7b0a3';
-  ctx.fillRect(0, 0, size, size);
-  for (let i = 0; i < 2; i += 1) {
-    for (let j = 0; j < 2; j += 1) {
-      ctx.fillStyle = `rgba(255,255,255,${0.02 + ((i + j) % 2) * 0.03})`;
-      ctx.fillRect((i * size) / 2, (j * size) / 2, size / 2, size / 2);
-    }
-  }
-  ctx.strokeStyle = '#8f887b';
-  ctx.lineWidth = 4;
-  for (let i = 0; i <= 2; i += 1) {
-    const p = (i * size) / 2;
-    ctx.beginPath();
-    ctx.moveTo(p, 0);
-    ctx.lineTo(p, size);
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.moveTo(0, p);
-    ctx.lineTo(size, p);
-    ctx.stroke();
-  }
-  ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
-  for (let i = 0; i < 200; i += 1) ctx.fillRect(Math.random() * size, Math.random() * size, 2, 2);
-  ctx.fillStyle = 'rgba(60, 55, 48, 0.16)';
-  for (let i = 0; i < 120; i += 1) ctx.fillRect(Math.random() * size, Math.random() * size, 1.5, 1.5);
-  return canvasTexture(canvas, { repeat: [repeatX, repeatY] });
+  const canvas = makeStoneFloorCanvas();
+  const texture = canvasTexture(canvas, { repeat: [repeatX, repeatY] });
+  texture.anisotropy = 8;
+  return texture;
 }
 
 /** 藻井吊顶 */
@@ -197,45 +530,10 @@ export function makeSkylightTexture() {
 /* 器物贴图                                                            */
 /* ------------------------------------------------------------------ */
 
-/** 青铜器：云雷纹地 + 锈色斑驳 */
-export function makeBronzeTexture() {
-  const w = 512;
-  const h = 512;
-  const { canvas, ctx } = makeCanvas(w, h);
-  ctx.fillStyle = '#82957c';
-  ctx.fillRect(0, 0, w, h);
-
-  // 云雷纹：回字形螺旋
-  ctx.strokeStyle = 'rgba(38, 52, 42, 0.55)';
-  ctx.lineWidth = 5;
-  for (let gy = 0; gy < 8; gy += 1) {
-    for (let gx = 0; gx < 8; gx += 1) {
-      const cx = gx * 64 + 32;
-      const cy = gy * 64 + 32;
-      const dir = (gx + gy) % 2 === 0 ? 1 : -1;
-      ctx.beginPath();
-      for (let i = 0; i < 4; i += 1) {
-        const r = 22 - i * 6;
-        ctx.moveTo(cx + dir * r, cy - r);
-        ctx.lineTo(cx + dir * r, cy + r);
-        ctx.lineTo(cx - dir * r, cy + r);
-        ctx.lineTo(cx - dir * r, cy - r + 6);
-      }
-      ctx.stroke();
-    }
-  }
-
-  // 铜锈与磨损
-  for (let i = 0; i < 260; i += 1) {
-    const x = Math.random() * w;
-    const y = Math.random() * h;
-    const r = 4 + Math.random() * 26;
-    ctx.fillStyle = Math.random() < 0.5 ? 'rgba(96, 148, 122, 0.12)' : 'rgba(186, 156, 96, 0.10)';
-    ctx.beginPath();
-    ctx.arc(x, y, r, 0, Math.PI * 2);
-    ctx.fill();
-  }
-  const texture = canvasTexture(canvas, { repeat: [3, 2] });
+/** 青铜器贴图：variant 决定纹样，repeat 调低避免一眼看出平铺 */
+export function makeBronzeTexture(variant = 0) {
+  const texture = canvasTexture(makeBronzeCanvas(variant), { repeat: [2, 1] });
+  texture.anisotropy = 8;
   return texture;
 }
 

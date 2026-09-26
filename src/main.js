@@ -1,7 +1,8 @@
 import * as THREE from 'three';
 import { createMuseum, ROOM, LAYOUT } from './museum.js';
 import { Input } from './input.js';
-import { Player } from './player.js';
+import { Player, CHARACTER_URL } from './player.js';
+import { preloadCharacter } from './character.js';
 import { createHud } from './hud.js';
 import { createInspector } from './inspector.js';
 import { createFortune } from './fortune.js';
@@ -36,6 +37,9 @@ pmrem.dispose();
 
 const camera = new THREE.PerspectiveCamera(60, 1, 0.1, 220);
 
+// 先把角色模型的下载挂上，与下面的展厅搭建并行进行（6.9 MB，能省下好几秒）
+preloadCharacter(CHARACTER_URL);
+
 const museum = createMuseum(scene);
 const input = new Input(canvas);
 const hud = createHud();
@@ -46,7 +50,7 @@ const fortune = createFortune({
 });
 const audio = createAudio();
 const reader = createReader();
-const minimap = createMinimap({ layout: LAYOUT });
+const minimap = createMinimap({ layout: LAYOUT, exhibits: museum.interactables });
 const roomTitle = createRoomTitle({ zones: LAYOUT.zones });
 
 const player = new Player({
@@ -138,6 +142,12 @@ if (!reader.supported) {
 }
 applyReaderUI();
 
+// 朗读器默认开启（原来默认关闭，用户希望进场景就能用）
+if (reader.supported && !reader.isEnabled()) {
+  reader.toggle();
+  applyReaderUI();
+}
+
 readerToggle.addEventListener('click', (event) => {
   event.stopPropagation();
   if (!reader.supported) return;
@@ -148,12 +158,13 @@ readerToggle.addEventListener('click', (event) => {
 
 /* ---------- 设置面板：小地图 ---------- */
 
-function bindCheckToggle(buttonId, stateId, onChange) {
+function bindCheckToggle(buttonId, stateId, onChange, defaultOn = false) {
   const button = document.getElementById(buttonId);
   const state = document.getElementById(stateId);
-  let value = false;
+  let value = defaultOn;
   const render = () => {
     button.setAttribute('aria-checked', value ? 'true' : 'false');
+    button.classList.toggle('on', value);
     state.textContent = value ? '开启' : '关闭';
   };
   button.addEventListener('click', (event) => {
@@ -163,18 +174,17 @@ function bindCheckToggle(buttonId, stateId, onChange) {
     onChange(value);
   });
   render();
+  onChange(value); // 默认值也要应用一次，否则开关是「开」而功能没开
   return { isOn: () => value };
 }
 
 bindCheckToggle('minimap-toggle', 'minimap-state', (on) => {
   minimap.setVisible(on);
-  hud.showToast(on ? '小地图已开启' : '小地图已关闭');
-});
+}, true);
 
 bindCheckToggle('roomtitle-toggle', 'roomtitle-state', (on) => {
   roomTitle.setEnabled(on);
-  hud.showToast(on ? '进入房间时会显示房间名' : '已关闭进房提示');
-});
+}, true);
 
 document.addEventListener('mousedown', (event) => {
   if (settingsPanel.classList.contains('hidden')) return;
@@ -549,6 +559,8 @@ function frame() {
 
   player.update(dt, camera, input, !blockInput);
   museum.update(dt, elapsed);
+  // 阴影相机跟着玩家走：房间有 48 × 80 m，固定范围的阴影贴图精度不够
+  museum.updateShadowFocus?.(player.position.x, player.position.z);
 
   minimap.update(player);
   if (!blockInput && !cinematic.active) roomTitle.update(dt, player.position);

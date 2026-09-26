@@ -6,36 +6,108 @@ import {
   makePorcelainTexture,
   makePotteryTexture,
   makeSlipTexture,
+  makeNormalMap,
+  makeRoughnessMap,
 } from './textures.js';
+
+/**
+ * 由颜色贴图的画布派生出法线 / 粗糙度贴图。
+ * 重复次数与颜色图保持一致，否则纹理会错位。
+ */
+function derived(canvas, source, kind, strength = 2) {
+  const texture = new THREE.CanvasTexture(
+    kind === 'normal' ? makeNormalMap(canvas, strength) : makeRoughnessMap(canvas),
+  );
+  texture.colorSpace = THREE.NoColorSpace;
+  texture.wrapS = THREE.RepeatWrapping;
+  texture.wrapT = THREE.RepeatWrapping;
+  if (source?.repeat) texture.repeat.copy(source.repeat);
+  texture.anisotropy = 8;
+  return texture;
+}
 
 /* ================================================================== */
 /* 材质（全局共用的单例，减少 draw call 与显存占用）                     */
 /* ================================================================== */
 
-let cache = null;
+/**
+ * 材质按「纹样变体」缓存。
+ *
+ * 之前所有器物共用一套青铜贴图，摆在一起纹饰完全一样，一眼就看出是同一张图。
+ * 现在做 4 种纹样（云雷纹 / 兽面纹 / 蟠螭纹 / 素面带锈），
+ * 每件器物按名字散列挑一种，同屏器物就不再雷同，而材质实例仍然只有 4 套。
+ */
+let activeVariant = 0;
+const materialSets = new Map();
+
+const variantOf = (name) => {
+  let hash = 0;
+  for (let i = 0; i < name.length; i += 1) hash = (hash * 31 + name.charCodeAt(i)) >>> 0;
+  return hash % 4;
+};
 
 export function materials() {
-  if (cache) return cache;
-  const bronzeMap = makeBronzeTexture();
+  const variant = activeVariant;
+  if (materialSets.has(variant)) return materialSets.get(variant);
+
+  const bronzeMap = makeBronzeTexture(variant);
   const lacquerMap = makeLacquerTexture();
-  cache = {
-    bronze: new THREE.MeshStandardMaterial({ map: bronzeMap, color: 0xd6e0cd, metalness: 0.85, roughness: 0.42 }),
-    patina: new THREE.MeshStandardMaterial({ map: bronzeMap, color: 0x86a48f, metalness: 0.7, roughness: 0.66 }),
-    darkBronze: new THREE.MeshStandardMaterial({ map: bronzeMap, color: 0x7d8a78, metalness: 0.8, roughness: 0.55 }),
+  const set = {
+    bronze: new THREE.MeshStandardMaterial({
+      map: bronzeMap,
+      normalMap: derived(bronzeMap.image, bronzeMap, 'normal', 2.6),
+      roughnessMap: derived(bronzeMap.image, bronzeMap, 'rough'),
+      color: 0xd6e0cd,
+      metalness: 0.85,
+      roughness: 1,
+    }),
+    patina: new THREE.MeshStandardMaterial({
+      map: bronzeMap,
+      normalMap: derived(bronzeMap.image, bronzeMap, 'normal', 2.6),
+      roughnessMap: derived(bronzeMap.image, bronzeMap, 'rough'),
+      color: 0x86a48f,
+      metalness: 0.7,
+      roughness: 1,
+    }),
+    darkBronze: new THREE.MeshStandardMaterial({
+      map: bronzeMap,
+      normalMap: derived(bronzeMap.image, bronzeMap, 'normal', 2.6),
+      color: 0x7d8a78,
+      metalness: 0.8,
+      roughness: 0.55,
+    }),
     gold: new THREE.MeshStandardMaterial({ color: 0xd8ae4e, metalness: 0.95, roughness: 0.24 }),
-    lacquer: new THREE.MeshStandardMaterial({ map: lacquerMap, roughness: 0.45, metalness: 0.15 }),
+    lacquer: new THREE.MeshStandardMaterial({
+      map: lacquerMap,
+      normalMap: derived(lacquerMap.image, lacquerMap, 'normal', 1.8),
+      roughness: 0.42,
+      metalness: 0.18,
+    }),
     black: new THREE.MeshStandardMaterial({ color: 0x1c1512, roughness: 0.42, metalness: 0.14 }),
     red: new THREE.MeshStandardMaterial({ color: 0x9c2b24, roughness: 0.5, metalness: 0.1 }),
     jade: new THREE.MeshStandardMaterial({ color: 0xbcd8c6, metalness: 0.05, roughness: 0.2 }),
-    porcelain: new THREE.MeshPhysicalMaterial({
-      map: makePorcelainTexture(),
-      roughness: 0.14,
-      metalness: 0.04,
-      clearcoat: 1,
-      clearcoatRoughness: 0.08,
-    }),
+    porcelain: (() => {
+      const map = makePorcelainTexture();
+      return new THREE.MeshPhysicalMaterial({
+        map,
+        normalMap: derived(map.image, map, 'normal', 1.1),
+        roughness: 0.14,
+        metalness: 0.04,
+        clearcoat: 1,
+        clearcoatRoughness: 0.08,
+      });
+    })(),
     celadon: new THREE.MeshStandardMaterial({ color: 0xa9c9b8, metalness: 0.08, roughness: 0.22 }),
-    pottery: new THREE.MeshStandardMaterial({ map: makePotteryTexture(), roughness: 0.85 }),
+    pottery: (() => {
+      const map = makePotteryTexture();
+      return new THREE.MeshStandardMaterial({
+        map,
+        normalMap: derived(map.image, map, 'normal', 1.6),
+        roughnessMap: derived(map.image, map, 'rough'),
+        roughness: 1,
+        metalness: 0.02,
+      });
+    })(),
     clay: new THREE.MeshStandardMaterial({ color: 0xb98a63, roughness: 0.9 }),
     steel: new THREE.MeshStandardMaterial({
       color: 0xd4dbe2,
@@ -50,178 +122,216 @@ export function materials() {
     bamboo: new THREE.MeshStandardMaterial({ map: makeSlipTexture(), roughness: 0.68 }),
     ink: new THREE.MeshStandardMaterial({ color: 0x2a2622, roughness: 0.6 }),
   };
-  return cache;
+  materialSets.set(variant, set);
+  return set;
 }
 
-/**
- * 展品清单。pos 是展台在展厅平面上的坐标，需落在对应展厅的范围内：
- *   序厅        x ∈ [-15, 15]  z ∈ [13, 27]
- *   青铜器厅    x ∈ [4, 15]    z ∈ [0, 13]
- *   陶瓷厅      x ∈ [4, 15]    z ∈ [-13, 0]
- *   曾侯乙墓厅  x ∈ [-15, -4]  z ∈ [0, 13]
- *   楚文化厅    x ∈ [-15, -4]  z ∈ [-13, 0]
- *   编钟厅      x ∈ [-15, 15]  z ∈ [-27, -13]
- */
 export const ARTIFACTS = [
-  /* ---- 序厅 ---- */
+  /* ---------------- 序厅（2 件） ---------------- */
   {
     shape: 'jiandu',
     name: '云梦睡虎地秦简',
     tag: '序厅 · 书写历史',
     desc: '1975 年云梦睡虎地十一号秦墓出土。一千一百多枚竹简上写着秦代的法律、巛书与日书，是第一次见到的大批秦代官方文书，也是隶书形成的实物见证。',
-    pos: [-7.5, 20],
+    pos: [-4.6, 39.0],
   },
   {
     shape: 'table',
     name: '楚式漆案与耳杯',
     tag: '序厅 · 漆器',
     desc: '矮足的漆案上摆着两只耳杯。楚人把漆器做得轻而艳：黑漆为地、朱漆为纹，一件漆耳杯只有几十克重，比铜器轻得多，也更适合拿在手里饮酒。',
-    pos: [7.5, 20],
+    pos: [4.6, 39.0],
   },
-
-  /* ---- 青铜器厅 ---- */
+  /* ---------------- 青铜器厅（8 件） ---------------- */
   {
     shape: 'lei',
     name: '兽面纹铜罍',
     tag: '青铜器厅 · 盛酒器',
     desc: '罍是大型盛酒器。小口、广肩、深腹、平底，肩上四个兽首衔着铜环，腹部满饰云雷纹与兽面纹。商周时「尊彝」之属各有定名，罍就是其中体量最大的一种，常与壶、缶成套出土。',
-    pos: [12.6, 2.6],
+    pos: [18.8, 2.9000000000000004],
   },
   {
     shape: 'ding',
     name: '铜鼎',
     tag: '青铜器厅 · 烹煮器',
     desc: '三足两耳，鼎腹下可以举火。鼎最早是煮肉的炊具，后来变成最重要的礼器：「列鼎而食」的数目直接对应身份，天子九鼎、诸侯七鼎，以至于「问鼎」就是窥伺天下。',
-    pos: [12.6, 6.6],
+    pos: [18.8, 7.3],
   },
   {
     shape: 'gui',
     name: '铜簋',
     tag: '青铜器厅 · 盛食器',
     desc: '簋用来盛黍稷。器身鼓腹、下有圈足，两侧一对兽首耳，上面还有个带圈状提手的盖。青铜礼器讲究组合，鼎与簋往往成套出土，用鼎用簋的数量共同标明墓主人的地位。',
-    pos: [12.6, 10.6],
+    pos: [18.8, 11.7],
   },
   {
     shape: 'mirror',
     name: '蟠螭纹铜镜',
     tag: '青铜器厅 · 照容器',
     desc: '正面磨得光可照人，背面铸出细密的蟠螭纹与几道同心弦纹，正中是一个可以穿绳的钮。铜镜是青铜器里少见的日用器，战国楚墓中出土极多，往往与梳、笁同放在痰盒里。',
-    pos: [6.9, 2.6],
+    pos: [18.8, 16.1],
   },
   {
     shape: 'hu',
     name: '嵌错纹铜壶',
     tag: '青铜器厅 · 盛酒器',
     desc: '壶用以盛酒，也可盛水。这件壶的腹部用金、银丝嵌错出宴乐、射猎的图像：人物、车马、飞鸟环壶一周，把一场战国时代的宴会绕在了器物上。',
-    pos: [6.9, 10.6],
+    pos: [11.4, 2.9000000000000004],
   },
-
-  /* ---- 陶瓷厅 ---- */
+  {
+    shape: 'jue',
+    name: '铜爵',
+    tag: '青铜器厅 · 饮酒器',
+    desc: '爵是最早的青铜礼器之一：前有长流、后有尖尾，一侧一鋬，下承三足。因可直接架火加热，它既是酒器也是温酒器。',
+    pos: [11.4, 7.3],
+  },
+  {
+    shape: 'you',
+    name: '铜卣',
+    tag: '青铜器厅 · 盛酒器',
+    desc: '卣用来盛祭祀用的香酒：器身椭圆、上有盖、口上跨一道提梁。商代的卣多铸成鸟兽形，这件是较常见的圆体卣。',
+    pos: [11.4, 11.7],
+  },
+  {
+    shape: 'pan',
+    name: '铜盘',
+    tag: '青铜器厅 · 盥洗器',
+    desc: '盘与匜配套：匜倒水、盘接水，是先秦贵族餐前「沃盥」之礼的器具。盘腹浅而口大，双耳便于搬抬。',
+    pos: [11.4, 16.1],
+  },
+  /* ---------------- 陶瓷厅（5 件） ---------------- */
   {
     shape: 'meiping',
     name: '元青花四爱图梅瓶',
     tag: '陶瓷厅 · 元青花',
     desc: '小口、丰肩、瘦底，腹部四面开光分别绘王羲之爱兰、陶渊明爱菊、周茂叔爱莲、林和靖爱梅。元青花人物题材存世极少，这一件因为出自明代郢靖王墓而保存完整。',
-    pos: [12.6, -2.6],
+    pos: [18.8, -16.1],
   },
   {
     shape: 'lotus',
     name: '青瓷莲花尊',
     tag: '陶瓷厅 · 青瓷',
     desc: '器身堆塑多层莲瓣，釉色青中泛绿，积釉处呈现出深色的玻璃感。佛教艺术自南北朝兴起后，莲花成了瓷器上最常见的花纹，这件尊就是那时的典型器形。',
-    pos: [12.6, -10.6],
+    pos: [18.8, -9.5],
   },
   {
     shape: 'li',
     name: '陶鬲',
     tag: '陶瓷厅 · 炊器',
     desc: '三个肥大的袋形足让受火面积更大，煮水做饭都很快——这是青铜鼎的陶器原型。鬲从新石器时代一直用到商周，是先秦最普通的炊具。',
-    pos: [6.9, -2.6],
+    pos: [18.8, -2.9000000000000004],
   },
   {
     shape: 'bowl',
     name: '屈家岭彩陶碗',
     tag: '陶瓷厅 · 彩陶',
     desc: '碗内用黑彩画出一圈潪涡纹。屈家岭文化距今约五千年，其彩陶以薄胎、高圈足和旋转的纹样著名，是长江中游史前陶器的高峰。',
-    pos: [6.9, -10.6],
+    pos: [11.4, -16.1],
   },
-
-  /* ---- 曾侯乙墓展厅 ---- */
+  {
+    shape: 'figure',
+    name: '彩绘陶俑',
+    tag: '陶瓷厅 · 明器',
+    desc: '以陶塑人形随葬，替代了更早的人殉。陶俑的衣饰与姿态，往往比文字更能说明当时的生活细节。',
+    pos: [11.4, -2.9000000000000004],
+  },
+  /* ---------------- 曾侯乙墓厅（5 件） ---------------- */
   {
     shape: 'zunpan',
     name: '曾侯乙尊盘',
     tag: '曾侯乙墓展厅 · 酒器',
     desc: '尊与盘合为一器：尊盛酒、盘承水。口沿与盘沿上层层透雕的蟠虺纹由无数细小的铜梗焊接而成，至今难以复制，是先秦青铜铸造技术登峰造极的证据。',
-    pos: [-12.6, 2.6],
+    pos: [-18.8, 2.9000000000000004],
   },
   {
     shape: 'jianfou',
     name: '青铜鉴缶',
     tag: '曾侯乙墓展厅 · 冰酒器',
     desc: '方鉴之内套一缶，鉴与缶之间留出的空腔可以装冰或热水，缶中盛酒，可冰可温——它被称为「世界上最早的冰箱」。鉴身满饰蟠螭纹，四角各有一条攀附的龙。',
-    pos: [-12.6, 6.6],
+    pos: [-18.8, 9.5],
   },
   {
     shape: 'drumStand',
     name: '铜建鼓座',
     tag: '曾侯乙墓展厅 · 乐器',
     desc: '插放建鼓的铜座，由十六条缠绕的蟠龙构成。龙首昂起、龙尾相接，鼓插于中央的圆孔之中，敲击时整座龙群仿佛都在震动。',
-    pos: [-12.6, 10.6],
+    pos: [-18.8, 16.1],
   },
   {
     shape: 'deer',
     name: '彩绘漆木卧鹿',
     tag: '曾侯乙墓展厅 · 漆木器',
     desc: '一只伏卧的木鹿，鹿角用真鹿角接装，通体髾黑漆，再以朱漆绘出卷云纹。它原本是悬鼓的鼓架，也是楚人眼中沟通天地的灵兽。',
-    pos: [-6.9, 10.6],
+    pos: [-11.4, 2.9000000000000004],
   },
-
-  /* ---- 楚文化展厅 ---- */
+  {
+    shape: 'zunVessel',
+    name: '铜尊',
+    tag: '曾侯乙墓展厅 · 盛酒器',
+    desc: '尊是盛酒的重器：喇叭口、鼓腹、圈足，四道扉棱把器身分成四面。曾侯乙墓的尊盘正是「尊」与「盘」合为一器。',
+    pos: [-11.4, 16.1],
+  },
+  /* ---------------- 楚文化厅（5 件） ---------------- */
   {
     shape: 'sword',
     name: '越王勾践剑',
     tag: '楚文化展厅 · 兵器',
     desc: '1965 年江陵望山一号楚墓出土。剑身满饰菱形暗格纹，近格处铸鸟篆铭文「越王鸠浅自作用剑」。出土时寒光凛冽、几乎不见锈蚀，被誉为「天下第一剑」。',
-    pos: [-12.6, -2.6],
+    pos: [-18.8, -16.1],
   },
   {
     shape: 'drum',
     name: '虎座鸟架鼓',
     tag: '楚文化展厅 · 乐器',
     desc: '楚国特有的悬鼓：两只昂首的凤鸟踏在卧虎背上，鼓身悬于鸟冠之间。漆器以黑为底、以红为饰，凤与虎的角力正是楚人想象中的天地秩序。',
-    pos: [-12.6, -6.6],
+    pos: [-18.8, -9.5],
   },
   {
     shape: 'ge',
     name: '铜戈与铜钺',
     tag: '楚文化展厅 · 兵器',
     desc: '戈是先秦最通用的长兵器，横缚在柲上，可以勾、可以喙；钺则宽大厚重，由武器演化为刑具与权力的象征，常与王权联系在一起。',
-    pos: [-12.6, -10.6],
+    pos: [-18.8, -2.9000000000000004],
   },
   {
     shape: 'beast',
     name: '彩绘漆木镇墓兽',
     tag: '楚文化展厅 · 木雕',
     desc: '方形的身躯上顶着一颗兽头，头插鹿角、口吐长舌。镇墓兽只出于楚墓，放在墓道两侧，作用是驱邪镇墓——它的含义至今仍无定论。',
-    pos: [-6.9, -2.6],
+    pos: [-11.4, -16.1],
   },
-
-  /* ---- 编钟厅 ---- */
+  {
+    shape: 'jadeSet',
+    name: '玉璧与玉琮',
+    tag: '楚文化展厅 · 玉器',
+    desc: '璧是天、琮是地：圆璧祭天、方琮礼地。两种玉器构成了先秦宇宙观的物质形态，也是等级最高的随葬品。',
+    pos: [-11.4, -2.9000000000000004],
+  },
+  /* ---------------- 编钟厅（3 件） ---------------- */
   {
     shape: 'yongzhong',
     name: '青铜甬钟',
     tag: '编钟厅 · 乐器',
     desc: '编钟中的单件。舞部之上有长柄叫「甬」，甬上有环叫「旋」，悬挂时用绳索系于旋上。钟体是合瓦形而非圆形，敲击正鼓与侧鼓会发出两个不同的音。',
-    pos: [11, -20],
+    pos: [-19, -25],
   },
   {
     shape: 'chunyu',
     name: '铜錞于',
     tag: '编钟厅 · 乐器',
     desc: '圆筒形的打击乐器，顶上有钮可以悬挂，敲击时声音低沉悠远。錞于常与鼓、钲同出，是军阵中节制动的最早一批「指挥乐器」。',
-    pos: [-11, -20],
+    pos: [19, -25],
   },
+  {
+    shape: 'qing',
+    name: '编磬',
+    tag: '编钟厅 · 乐器',
+    desc: '「金石之乐」里的石，指的就是磬。石片按音高大小成组悬挂，与编钟相和，是先秦宫廷乐队的两大支柱。',
+    pos: [0, -37],
+  },
+
 ];
+
 
 /* ================================================================== */
 /* 展品故事                                                            */
@@ -330,17 +440,17 @@ function mesh(geometry, material, position, rotation) {
   return object;
 }
 
-const lathe = (points, segments = 44) =>
+const lathe = (points, segments = 64) =>
   new THREE.LatheGeometry(points.map(([r, y]) => new THREE.Vector2(r, y)), segments);
 
 /** 合瓦形钟体：纵剖面绕轴旋转后再把 z 压扁 */
-export function makeBellGeometry(height) {
+export function makeBellGeometry(height, width = 1) {
   const profile = [
     [0.03, 0], [0.34, 0], [0.35, 0.05], [0.29, 0.11], [0.27, 0.3],
     [0.25, 0.55], [0.22, 0.75], [0.2, 0.88], [0.185, 0.94], [0.12, 0.99], [0.03, 1],
   ];
-  const geometry = lathe(profile, 22);
-  geometry.scale(1, height, 0.62);
+  const geometry = lathe(profile, 24);
+  geometry.scale(width, height, 0.62 * width);
   geometry.computeVertexNormals();
   return geometry;
 }
@@ -353,8 +463,8 @@ export function makeBellGeometry(height) {
 function shapeZunPan() {
   const m = materials();
   const group = new THREE.Group();
-  group.add(mesh(new THREE.CylinderGeometry(0.5, 0.42, 0.14, 42), m.bronze, [0, 0.32, 0]));
-  group.add(mesh(new THREE.TorusGeometry(0.5, 0.03, 10, 46), m.patina, [0, 0.4, 0], [Math.PI / 2, 0, 0]));
+  group.add(mesh(new THREE.CylinderGeometry(0.5, 0.42, 0.14, 56), m.bronze, [0, 0.32, 0]));
+  group.add(mesh(new THREE.TorusGeometry(0.5, 0.03, 14, 64), m.patina, [0, 0.4, 0], [Math.PI / 2, 0, 0]));
   for (let i = 0; i < 4; i += 1) {
     const a = (i / 4) * Math.PI * 2 + Math.PI / 4;
     group.add(mesh(new THREE.CylinderGeometry(0.05, 0.04, 0.28, 12), m.patina, [Math.cos(a) * 0.28, 0.14, Math.sin(a) * 0.28]));
@@ -380,8 +490,8 @@ function shapeJianFou() {
     group.add(mesh(new THREE.TorusGeometry(0.07, 0.018, 8, 20), m.patina, [Math.cos(a) * 0.32, 0.32, Math.sin(a) * 0.32], [0, -a, 0]));
     group.add(mesh(new THREE.BoxGeometry(0.1, 0.07, 0.1), m.patina, [Math.cos(a) * 0.24, 0.035, Math.sin(a) * 0.24]));
   }
-  group.add(mesh(new THREE.CylinderGeometry(0.19, 0.17, 0.34, 30), m.patina, [0, 0.62, 0]));
-  group.add(mesh(new THREE.CylinderGeometry(0.2, 0.2, 0.04, 30), m.bronze, [0, 0.8, 0]));
+  group.add(mesh(new THREE.CylinderGeometry(0.19, 0.17, 0.34, 40), m.patina, [0, 0.62, 0]));
+  group.add(mesh(new THREE.CylinderGeometry(0.2, 0.2, 0.04, 40), m.bronze, [0, 0.8, 0]));
   return group;
 }
 
@@ -392,7 +502,32 @@ function shapeDeer() {
   const body = m.black;
   group.add(mesh(new THREE.CapsuleGeometry(0.15, 0.3, 6, 16), body, [0, 0.2, 0], [0, 0, Math.PI / 2]));
   group.add(mesh(new THREE.CylinderGeometry(0.06, 0.08, 0.3, 14), body, [0.24, 0.36, 0], [0, 0, -0.6]));
-  group.add(mesh(new THREE.ConeGeometry(0.07, 0.2, 14), m.red, [0.35, 0.5, 0], [0, 0, -1.1]));
+  // 头：颅骨 + 吻部 + 鼻头 + 双耳 + 双眼。原来只是一个圆锥，完全看不出是鹿。
+  const skull = mesh(new THREE.SphereGeometry(0.072, 20, 16), m.red);
+  skull.scale.set(1.15, 1, 0.85);
+  skull.position.set(0.34, 0.475, 0);
+  group.add(skull);
+
+  const muzzle = mesh(new THREE.CylinderGeometry(0.034, 0.056, 0.14, 16), body);
+  muzzle.rotation.z = Math.PI / 2 - 0.4;
+  muzzle.position.set(0.435, 0.442, 0);
+  group.add(muzzle);
+
+  const nose = mesh(new THREE.SphereGeometry(0.03, 14, 12), body);
+  nose.scale.set(1, 0.8, 1);
+  nose.position.set(0.492, 0.418, 0);
+  group.add(nose);
+
+  for (const side of [-1, 1]) {
+    const ear = mesh(new THREE.ConeGeometry(0.03, 0.09, 12), body);
+    ear.position.set(0.302, 0.545, side * 0.052);
+    ear.rotation.set(side * 0.55, 0, 0.42);
+    group.add(ear);
+
+    const eye = mesh(new THREE.SphereGeometry(0.015, 12, 10), m.gold);
+    eye.position.set(0.385, 0.492, side * 0.052);
+    group.add(eye);
+  }
   for (const side of [-1, 1]) {
     for (let i = 0; i < 3; i += 1) {
       group.add(
@@ -410,20 +545,84 @@ function shapeDeer() {
   return group;
 }
 
-/** 铜建鼓座：蟠龙盘绕的底座 */
+/**
+ * 铜建鼓座：十六条蟠龙盘绕。
+ *
+ * 之前是 8 个圆柱 + 8 个圆锥从底座上杵出来，看着就是一堆浮空的锥子。
+ * 现在每条龙用 TubeGeometry 沿一条空间螺旋曲线生成——龙身真的绕着底座盘上去，
+ * 末端接龙首（吻部 + 双目 + 双角 + 下颚），起端收成尾尖。
+ * 既保留了低多边形的轮廓感，又有能看出「龙」的细节。
+ */
 function shapeDrumStand() {
   const m = materials();
   const group = new THREE.Group();
-  group.add(mesh(new THREE.CylinderGeometry(0.42, 0.36, 0.16, 34), m.bronze, [0, 0.08, 0]));
-  group.add(mesh(new THREE.CylinderGeometry(0.16, 0.2, 0.3, 26), m.bronze, [0, 0.3, 0]));
-  for (let i = 0; i < 8; i += 1) {
-    const a = (i / 8) * Math.PI * 2;
-    group.add(
-      mesh(new THREE.CylinderGeometry(0.03, 0.05, 0.5, 10), m.patina, [Math.cos(a) * 0.26, 0.3, Math.sin(a) * 0.26], [-Math.sin(a) * 0.5, 0, Math.cos(a) * 0.5]),
-    );
-    group.add(
-      mesh(new THREE.ConeGeometry(0.06, 0.14, 10), m.bronze, [Math.cos(a) * 0.42, 0.52, Math.sin(a) * 0.42], [-Math.sin(a) * 0.9, 0, Math.cos(a) * 0.9]),
-    );
+
+  // 底座与承鼓的圆筒
+  group.add(mesh(new THREE.CylinderGeometry(0.6, 0.7, 0.18, 48), m.bronze, [0, 0.09, 0]));
+  group.add(mesh(new THREE.TorusGeometry(0.62, 0.045, 12, 56), m.patina, [0, 0.19, 0], [Math.PI / 2, 0, 0]));
+  group.add(mesh(new THREE.CylinderGeometry(0.2, 0.26, 0.52, 32), m.darkBronze, [0, 0.45, 0]));
+  group.add(mesh(new THREE.TorusGeometry(0.2, 0.032, 10, 32), m.gold, [0, 0.72, 0], [Math.PI / 2, 0, 0]));
+  group.add(mesh(new THREE.CylinderGeometry(0.16, 0.16, 0.06, 24), m.patina, [0, 0.12, 0]));
+
+  const DRAGONS = 16;
+  for (let i = 0; i < DRAGONS; i += 1) {
+    const a0 = (i / DRAGONS) * Math.PI * 2;
+    const dir = i % 2 === 0 ? 1 : -1;       // 相邻两条反向盘绕，互相缠绕
+    const climb = 0.5 + (i % 4) * 0.06;     // 各条龙高度略有差别，避免整齐得像齿轮
+
+    // 螺旋曲线：半径逐渐收小、高度逐渐升高
+    const points = [];
+    for (let k = 0; k <= 7; k += 1) {
+      const u = k / 7;
+      const angle = a0 + dir * u * Math.PI * 1.25;
+      const radius = 0.5 - u * 0.14 + Math.sin(u * Math.PI) * 0.08;
+      const y = 0.16 + u * climb;
+      points.push(new THREE.Vector3(Math.cos(angle) * radius, y, Math.sin(angle) * radius));
+    }
+    const curve = new THREE.CatmullRomCurve3(points);
+    const body = new THREE.Mesh(new THREE.TubeGeometry(curve, 22, 0.042, 8, false), m.patina);
+    body.castShadow = true;
+    group.add(body);
+
+    // 尾尖：把龙身起点收成尖
+    const tail = new THREE.Mesh(new THREE.ConeGeometry(0.042, 0.16, 8), m.patina);
+    tail.position.copy(curve.getPointAt(0));
+    tail.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), curve.getTangentAt(0).negate());
+    group.add(tail);
+
+    // 龙首：位于曲线末端，朝向切线方向
+    const end = curve.getPointAt(1);
+    const tangent = curve.getTangentAt(1).normalize();
+    const head = new THREE.Group();
+    head.position.copy(end);
+    head.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), tangent);
+
+    const skull = new THREE.Mesh(new THREE.ConeGeometry(0.075, 0.19, 10), m.bronze);
+    skull.rotation.x = Math.PI / 2;
+    skull.position.z = 0.06;
+    skull.castShadow = true;
+    head.add(skull);
+
+    const jaw = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.03, 0.13), m.darkBronze);
+    jaw.position.set(0, -0.045, 0.1);
+    head.add(jaw);
+
+    for (const side of [-1, 1]) {
+      const eye = new THREE.Mesh(new THREE.SphereGeometry(0.018, 12, 10), m.gold);
+      eye.position.set(side * 0.042, 0.026, 0.075);
+      head.add(eye);
+
+      const horn = new THREE.Mesh(new THREE.ConeGeometry(0.016, 0.1, 8), m.bronze);
+      horn.position.set(side * 0.038, 0.075, 0.01);
+      horn.rotation.set(-0.5, 0, side * 0.35);
+      head.add(horn);
+
+      const whisker = new THREE.Mesh(new THREE.CylinderGeometry(0.006, 0.004, 0.11, 6), m.gold);
+      whisker.position.set(side * 0.03, -0.01, 0.16);
+      whisker.rotation.set(1.1, 0, side * 0.2);
+      head.add(whisker);
+    }
+    group.add(head);
   }
   return group;
 }
@@ -442,9 +641,9 @@ function shapeDrum() {
     group.add(mesh(new THREE.CylinderGeometry(0.035, 0.05, 0.34, 14), m.black, [side * 0.34, 0.72, 0], [0, 0, side * 0.25]));
     group.add(mesh(new THREE.ConeGeometry(0.05, 0.16, 14), m.gold, [side * 0.4, 0.9, 0], [0, 0, side * 1.4]));
   }
-  group.add(mesh(new THREE.CylinderGeometry(0.24, 0.24, 0.34, 30), m.red, [0, 0.62, 0], [0, 0, Math.PI / 2]));
+  group.add(mesh(new THREE.CylinderGeometry(0.24, 0.24, 0.34, 40), m.red, [0, 0.62, 0], [0, 0, Math.PI / 2]));
   for (const end of [-0.17, 0.17]) {
-    group.add(mesh(new THREE.TorusGeometry(0.24, 0.018, 8, 30), m.gold, [end, 0.62, 0], [0, Math.PI / 2, 0]));
+    group.add(mesh(new THREE.TorusGeometry(0.24, 0.018, 8, 40), m.gold, [end, 0.62, 0], [0, Math.PI / 2, 0]));
   }
   group.add(mesh(new THREE.BoxGeometry(0.86, 0.05, 0.05), m.black, [0, 0.98, 0]));
   return group;
@@ -496,8 +695,8 @@ function shapeLei() {
   );
   body.material.side = THREE.DoubleSide;
   group.add(body);
-  group.add(mesh(new THREE.TorusGeometry(0.2, 0.022, 8, 30), m.patina, [0, 0.98, 0], [Math.PI / 2, 0, 0]));
-  group.add(mesh(new THREE.CylinderGeometry(0.22, 0.24, 0.06, 30), m.patina, [0, 1.03, 0]));
+  group.add(mesh(new THREE.TorusGeometry(0.2, 0.022, 8, 40), m.patina, [0, 0.98, 0], [Math.PI / 2, 0, 0]));
+  group.add(mesh(new THREE.CylinderGeometry(0.22, 0.24, 0.06, 40), m.patina, [0, 1.03, 0]));
   // 四耳衔环
   for (let i = 0; i < 4; i += 1) {
     const a = (i / 4) * Math.PI * 2 + Math.PI / 4;
@@ -506,25 +705,51 @@ function shapeLei() {
   return group;
 }
 
-/** 铜鼎：三足双耳 */
+/**
+ * 铜鼎：三只兽蹄足 + 双立耳 + 三面扉棱。
+ * 原来足的上下半径只差 1cm，看着又细又直，像随时会断；现在做出蹄形：
+ * 根部粗、中间收、末端外撇成蹄，并加一块裹足的兽面。
+ */
 function shapeDing() {
   const m = materials();
   const group = new THREE.Group();
-  const body = mesh(
-    lathe([[0.001, 0], [0.18, 0], [0.3, 0.16], [0.34, 0.32], [0.33, 0.42], [0.3, 0.46]]),
-    m.bronze,
-  );
+
+  const body = mesh(lathe([[0.001, 0], [0.2, 0], [0.32, 0.15], [0.36, 0.32], [0.34, 0.44], [0.3, 0.48]]), m.bronze);
   body.material.side = THREE.DoubleSide;
   group.add(body);
-  group.add(mesh(new THREE.TorusGeometry(0.3, 0.028, 8, 34), m.darkBronze, [0, 0.46, 0], [Math.PI / 2, 0, 0]));
+
+  // 口沿与腹部纹带
+  group.add(mesh(new THREE.TorusGeometry(0.31, 0.03, 12, 44), m.darkBronze, [0, 0.48, 0], [Math.PI / 2, 0, 0]));
+  group.add(mesh(new THREE.TorusGeometry(0.35, 0.022, 10, 44), m.patina, [0, 0.2, 0], [Math.PI / 2, 0, 0]));
+
+  // 三只兽蹄足
   for (let i = 0; i < 3; i += 1) {
-    const a = (i / 3) * Math.PI * 2;
-    group.add(
-      mesh(new THREE.CylinderGeometry(0.045, 0.035, 0.34, 12), m.bronze, [Math.cos(a) * 0.22, -0.17, Math.sin(a) * 0.22], [Math.cos(a) * 0.16, 0, -Math.sin(a) * 0.16]),
-    );
+    const a = (i / 3) * Math.PI * 2 - Math.PI / 2;
+    const cx = Math.cos(a) * 0.24;
+    const cz = Math.sin(a) * 0.24;
+    const leg = new THREE.Group();
+    leg.position.set(cx, 0, cz);
+    leg.rotation.y = -a;
+
+    leg.add(mesh(new THREE.CylinderGeometry(0.075, 0.06, 0.2, 16), m.bronze, [0, -0.06, 0]));
+    leg.add(mesh(new THREE.CylinderGeometry(0.06, 0.055, 0.16, 16), m.bronze, [0, -0.22, 0]));
+    // 兽面裹足
+    leg.add(mesh(new THREE.ConeGeometry(0.085, 0.13, 12), m.darkBronze, [0, -0.05, 0.01], [0.25, 0, 0]));
+    // 蹄
+    leg.add(mesh(new THREE.CylinderGeometry(0.062, 0.08, 0.09, 18), m.bronze, [0, -0.34, 0]));
+    leg.add(mesh(new THREE.SphereGeometry(0.062, 18, 14), m.patina, [0, -0.39, 0]));
+    group.add(leg);
+
+    // 三面扉棱
+    const flange = mesh(new THREE.BoxGeometry(0.05, 0.5, 0.05), m.darkBronze, [Math.cos(a) * 0.35, 0.24, Math.sin(a) * 0.35], [0, -a, 0]);
+    group.add(flange);
   }
+
+  // 双立耳：拱形，两端与口沿咬合
   for (const side of [-1, 1]) {
-    group.add(mesh(new THREE.TorusGeometry(0.075, 0.022, 8, 24), m.bronze, [side * 0.22, 0.56, 0], [0, Math.PI / 2, 0], [0, 0, 0]));
+    group.add(mesh(new THREE.TorusGeometry(0.075, 0.024, 12, 28, Math.PI), m.bronze, [side * 0.2, 0.48, 0], [0, Math.PI / 2, 0]));
+    group.add(mesh(new THREE.BoxGeometry(0.04, 0.1, 0.05), m.bronze, [side * 0.225, 0.44, 0]));
+    group.add(mesh(new THREE.BoxGeometry(0.04, 0.1, 0.05), m.bronze, [side * 0.175, 0.44, 0]));
   }
   return group;
 }
@@ -536,10 +761,10 @@ function shapeGui() {
   const body = mesh(lathe([[0.001, 0], [0.2, 0], [0.22, 0.05], [0.3, 0.3], [0.31, 0.4]]), m.bronze);
   body.material.side = THREE.DoubleSide;
   group.add(body);
-  group.add(mesh(new THREE.TorusGeometry(0.31, 0.025, 8, 34), m.darkBronze, [0, 0.4, 0], [Math.PI / 2, 0, 0]));
+  group.add(mesh(new THREE.TorusGeometry(0.31, 0.025, 8, 44), m.darkBronze, [0, 0.4, 0], [Math.PI / 2, 0, 0]));
   group.add(mesh(lathe([[0.001, 0], [0.29, 0], [0.24, 0.16], [0.12, 0.24]]), m.darkBronze, [0, 0.4, 0]));
   group.add(mesh(new THREE.CylinderGeometry(0.07, 0.09, 0.1, 20), m.bronze, [0, 0.68, 0]));
-  group.add(mesh(new THREE.CylinderGeometry(0.22, 0.22, 0.08, 30), m.patina, [0, -0.04, 0]));
+  group.add(mesh(new THREE.CylinderGeometry(0.22, 0.22, 0.08, 40), m.patina, [0, -0.04, 0]));
   for (const side of [-1, 1]) {
     group.add(mesh(new THREE.TorusGeometry(0.09, 0.025, 8, 24), m.patina, [side * 0.3, 0.22, 0], [0, Math.PI / 2, 0]));
   }
@@ -558,7 +783,7 @@ function shapeHu() {
   group.add(body);
   group.add(mesh(new THREE.TorusGeometry(0.13, 0.02, 8, 26), m.gold, [0, 0.9, 0], [Math.PI / 2, 0, 0]));
   group.add(mesh(lathe([[0.001, 0], [0.14, 0], [0.09, 0.09]]), m.darkBronze, [0, 0.9, 0]));
-  group.add(mesh(new THREE.SphereGeometry(0.035, 14, 10), m.gold, [0, 1.02, 0]));
+  group.add(mesh(new THREE.SphereGeometry(0.035, 20, 14), m.gold, [0, 1.02, 0]));
   for (let i = 0; i < 2; i += 1) {
     const a = i * Math.PI;
     group.add(mesh(new THREE.TorusGeometry(0.06, 0.018, 8, 20), m.gold, [Math.cos(a) * 0.24, 0.62, Math.sin(a) * 0.24], [0, -a, 0]));
@@ -616,12 +841,12 @@ function shapeChunYu() {
   );
   body.material.side = THREE.DoubleSide;
   group.add(body);
-  group.add(mesh(new THREE.TorusGeometry(0.17, 0.02, 8, 30), m.patina, [0, 0.9, 0], [Math.PI / 2, 0, 0]));
-  group.add(mesh(new THREE.TorusGeometry(0.24, 0.016, 8, 32), m.gold, [0, 0.34, 0], [Math.PI / 2, 0, 0]));
+  group.add(mesh(new THREE.TorusGeometry(0.17, 0.02, 8, 40), m.patina, [0, 0.9, 0], [Math.PI / 2, 0, 0]));
+  group.add(mesh(new THREE.TorusGeometry(0.24, 0.016, 8, 44), m.gold, [0, 0.34, 0], [Math.PI / 2, 0, 0]));
   for (const side of [-1, 1]) {
     group.add(mesh(new THREE.TorusGeometry(0.06, 0.018, 8, 20), m.darkBronze, [side * 0.24, 0.62, 0], [0, Math.PI / 2, 0]));
   }
-  group.add(mesh(new THREE.CylinderGeometry(0.2, 0.22, 0.04, 30), m.patina, [0, 0.02, 0]));
+  group.add(mesh(new THREE.CylinderGeometry(0.2, 0.22, 0.04, 40), m.patina, [0, 0.02, 0]));
   return group;
 }
 
@@ -703,7 +928,7 @@ function shapeMeiPing() {
   );
   vase.material.side = THREE.DoubleSide;
   group.add(vase);
-  group.add(mesh(new THREE.CylinderGeometry(0.16, 0.17, 0.03, 32), m.celadon, [0, 0.015, 0]));
+  group.add(mesh(new THREE.CylinderGeometry(0.16, 0.17, 0.03, 44), m.celadon, [0, 0.015, 0]));
   return group;
 }
 
@@ -741,10 +966,10 @@ function shapeLi() {
   const body = mesh(lathe([[0.001, 0], [0.18, 0.02], [0.28, 0.24], [0.3, 0.4], [0.26, 0.5]]), m.pottery);
   body.material.side = THREE.DoubleSide;
   group.add(body);
-  group.add(mesh(new THREE.TorusGeometry(0.26, 0.03, 8, 30), m.clay, [0, 0.5, 0], [Math.PI / 2, 0, 0]));
+  group.add(mesh(new THREE.TorusGeometry(0.26, 0.03, 8, 40), m.clay, [0, 0.5, 0], [Math.PI / 2, 0, 0]));
   for (let i = 0; i < 3; i += 1) {
     const a = (i / 3) * Math.PI * 2 + 0.5;
-    group.add(mesh(new THREE.SphereGeometry(0.13, 16, 12), m.pottery, [Math.cos(a) * 0.16, 0.12, Math.sin(a) * 0.16]));
+    group.add(mesh(new THREE.SphereGeometry(0.13, 24, 18), m.pottery, [Math.cos(a) * 0.16, 0.12, Math.sin(a) * 0.16]));
   }
   return group;
 }
@@ -765,7 +990,7 @@ function shapeFigure() {
   const m = materials();
   const group = new THREE.Group();
   group.add(mesh(new THREE.CylinderGeometry(0.13, 0.17, 0.52, 20), m.clay, [0, 0.26, 0]));
-  group.add(mesh(new THREE.SphereGeometry(0.09, 18, 14), m.clay, [0, 0.62, 0]));
+  group.add(mesh(new THREE.SphereGeometry(0.09, 26, 20), m.clay, [0, 0.62, 0]));
   group.add(mesh(new THREE.BoxGeometry(0.08, 0.16, 0.3), m.clay, [0, 0.42, 0.02]));
   group.add(mesh(new THREE.TorusGeometry(0.12, 0.022, 8, 24), m.red, [0, 0.5, 0], [Math.PI / 2, 0, 0]));
   return group;
@@ -806,6 +1031,109 @@ function shapeTable() {
   return group;
 }
 
+
+/* ---------------- 第二批器物造型 ---------------- */
+
+/** 铜爵：有流有尾、三足一鋬 */
+function shapeJue() {
+  const m = materials();
+  const group = new THREE.Group();
+  const body = mesh(lathe([[0.02, 0], [0.13, 0.02], [0.16, 0.12], [0.15, 0.26], [0.17, 0.34]]), m.bronze);
+  body.material.side = THREE.DoubleSide;
+  group.add(body);
+  group.add(mesh(new THREE.BoxGeometry(0.26, 0.05, 0.1), m.bronze, [0.17, 0.34, 0], [0, 0, 0.22]));
+  group.add(mesh(new THREE.ConeGeometry(0.05, 0.2, 4), m.bronze, [-0.16, 0.35, 0], [0, 0, Math.PI / 2 + 0.3]));
+  // 三足：原来是最细只有 2.8cm 的圆锥，像快断了；改成有根有蹄的刀形足
+  for (let i = 0; i < 3; i += 1) {
+    const a = (i / 3) * Math.PI * 2 + 0.4;
+    const lx = Math.cos(a) * 0.1;
+    const lz = Math.sin(a) * 0.1;
+    group.add(mesh(new THREE.CylinderGeometry(0.042, 0.03, 0.1, 12), m.darkBronze, [lx, -0.03, lz]));
+    group.add(mesh(new THREE.CylinderGeometry(0.03, 0.022, 0.16, 12), m.darkBronze, [lx * 1.5, -0.16, lz * 1.5],
+      [Math.cos(a) * 0.2, 0, -Math.sin(a) * 0.2]));
+    group.add(mesh(new THREE.ConeGeometry(0.028, 0.07, 10), m.bronze, [lx * 1.9, -0.27, lz * 1.9], [Math.PI, 0, 0]));
+  }
+  group.add(mesh(new THREE.TorusGeometry(0.055, 0.014, 10, 22, Math.PI), m.bronze, [0.15, 0.2, 0], [0, Math.PI / 2, 0.4]));
+  group.add(mesh(new THREE.TorusGeometry(0.11, 0.014, 10, 26), m.gold, [0, 0.34, 0], [Math.PI / 2, 0, 0]));
+  return group;
+}
+
+/** 铜盘：大口浅腹、圈足、双耳 */
+function shapePan() {
+  const m = materials();
+  const group = new THREE.Group();
+  const body = mesh(lathe([[0.02, 0], [0.34, 0], [0.4, 0.08], [0.44, 0.18], [0.42, 0.2]]), m.bronze);
+  body.material.side = THREE.DoubleSide;
+  body.position.y = 0.14;
+  group.add(body);
+  group.add(mesh(new THREE.CylinderGeometry(0.3, 0.32, 0.14, 40), m.darkBronze, [0, 0.07, 0]));
+  group.add(mesh(new THREE.TorusGeometry(0.42, 0.022, 12, 48), m.patina, [0, 0.34, 0], [Math.PI / 2, 0, 0]));
+  for (const side of [-1, 1]) {
+    group.add(mesh(new THREE.TorusGeometry(0.07, 0.02, 10, 24), m.patina, [side * 0.43, 0.28, 0], [0, Math.PI / 2, 0]));
+  }
+  return group;
+}
+
+/** 铜卣：椭圆腹 + 盖 + 提梁 */
+function shapeYou() {
+  const m = materials();
+  const group = new THREE.Group();
+  const body = mesh(lathe([[0.02, 0], [0.18, 0], [0.2, 0.04], [0.27, 0.2], [0.26, 0.36], [0.2, 0.46], [0.18, 0.52]]), m.bronze);
+  body.material.side = THREE.DoubleSide;
+  body.scale.set(1, 1, 0.78);
+  group.add(body);
+  group.add(mesh(new THREE.CylinderGeometry(0.2, 0.22, 0.1, 36), m.darkBronze, [0, 0.05, 0]));
+  const lid = mesh(lathe([[0.02, 0], [0.2, 0], [0.16, 0.1], [0.08, 0.17]]), m.darkBronze);
+  lid.position.y = 0.52;
+  lid.scale.set(1, 1, 0.78);
+  group.add(lid);
+  group.add(mesh(new THREE.SphereGeometry(0.045, 18, 14), m.gold, [0, 0.72, 0]));
+  const handle = mesh(new THREE.TorusGeometry(0.22, 0.022, 12, 40, Math.PI), m.patina, [0, 0.5, 0]);
+  handle.rotation.z = Math.PI;
+  handle.scale.set(1, 1, 0.6);
+  group.add(handle);
+  for (const side of [-1, 1]) {
+    group.add(mesh(new THREE.TorusGeometry(0.04, 0.013, 8, 18), m.gold, [side * 0.2, 0.5, 0]));
+  }
+  return group;
+}
+
+/** 铜尊：喇叭口 + 鼓腹 + 四道扉棱 */
+function shapeZunVessel() {
+  const m = materials();
+  const group = new THREE.Group();
+  const body = mesh(
+    lathe([[0.02, 0], [0.19, 0], [0.22, 0.06], [0.26, 0.22], [0.31, 0.42], [0.33, 0.56], [0.3, 0.72], [0.34, 0.88], [0.42, 1.0], [0.45, 1.05]]),
+    m.bronze,
+  );
+  body.material.side = THREE.DoubleSide;
+  group.add(body);
+  group.add(mesh(new THREE.TorusGeometry(0.44, 0.022, 12, 48), m.patina, [0, 1.05, 0], [Math.PI / 2, 0, 0]));
+  for (let i = 0; i < 4; i += 1) {
+    const a = (i / 4) * Math.PI * 2 + Math.PI / 4;
+    group.add(mesh(new THREE.BoxGeometry(0.05, 0.5, 0.05), m.darkBronze, [Math.cos(a) * 0.3, 0.5, Math.sin(a) * 0.3], [0, -a, 0]));
+  }
+  return group;
+}
+
+/** 编磬：三片石磬挂在木架上 */
+function shapeQing() {
+  const m = materials();
+  const group = new THREE.Group();
+  const stone = new THREE.MeshStandardMaterial({ color: 0x9aa39b, roughness: 0.55, metalness: 0.05 });
+  for (let i = 0; i < 3; i += 1) {
+    const length = 0.42 - i * 0.06;
+    group.add(mesh(new THREE.BoxGeometry(length, 0.1, 0.03), stone, [i * 0.42 - 0.42, 0.86 - i * 0.02, 0], [0, 0, -0.28]));
+    group.add(mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.06, 8), m.gold, [i * 0.42 - 0.26, 0.98 - i * 0.02, 0]));
+  }
+  for (const side of [-1, 1]) {
+    group.add(mesh(new THREE.CylinderGeometry(0.035, 0.045, 1.12, 12), m.lacquer, [side * 0.62, 0.56, 0]));
+  }
+  group.add(mesh(new THREE.BoxGeometry(1.42, 0.08, 0.1), m.lacquer, [0, 1.12, 0]));
+  group.add(mesh(new THREE.BoxGeometry(0.5, 0.05, 0.3), m.black, [0, 0.03, 0]));
+  return group;
+}
+
 /* ================================================================== */
 /* 造型注册表                                                          */
 /* ================================================================== */
@@ -836,12 +1164,20 @@ const SHAPE_BUILDERS = {
   figure: shapeFigure,
   jiandu: shapeJianDu,
   table: shapeTable,
+  jue: shapeJue,
+  pan: shapePan,
+  you: shapeYou,
+  zunVessel: shapeZunVessel,
+  qing: shapeQing,
 };
 
 /** 生成展品对象，并把包围盒调成「水平居中、底面贴 y = 0」 */
 export function createArtifactObject(artifact) {
+  // 按展品名挑纹样变体，让同一展厅里的器物纹饰各不相同
+  activeVariant = artifact.variant ?? variantOf(artifact.name ?? '');
   const builder = SHAPE_BUILDERS[artifact.shape];
   const object = builder ? builder(artifact) : new THREE.Group();
+  activeVariant = 0;
 
   const box = new THREE.Box3().setFromObject(object);
   const center = box.getCenter(new THREE.Vector3());
@@ -873,16 +1209,18 @@ export function buildChimeBells() {
   const inner = new THREE.Group();
   group.add(inner);
 
-  const LONG = 6.6;
-  const SHORT = 3.1;
-  const BEAM = 0.2;
-  const BEAM_DEPTH = 0.22;
-  const POST_TOP = 3.35;
+  const LONG = 9.5;
+  const SHORT = 4.4;
+  const BEAM = 0.28;
+  const BEAM_DEPTH = 0.3;
+  const POST_TOP = 4.6;
+  /** 钟体横向放大系数：钟架变大了，钟也要跟着变宽，否则显得又细又长 */
+  const BELL_WIDTH = 1.35;
 
   const tiers = [
-    { y: 1.7, height: 0.92, spacing: 0.8, yong: 0.3 },
-    { y: 2.45, height: 0.6, spacing: 0.45, yong: 0.3 },
-    { y: 3.05, height: 0.38, spacing: 0.34, yong: 0 },
+    { y: 2.4, height: 1.28, spacing: 1.12, yong: 0.3 },
+    { y: 3.4, height: 0.84, spacing: 0.63, yong: 0.3 },
+    { y: 4.2, height: 0.53, spacing: 0.48, yong: 0 },
   ];
   const arms = [
     { axis: 'x', length: LONG, center: [LONG / 2, 0] },
@@ -894,7 +1232,7 @@ export function buildChimeBells() {
   const unit = new THREE.Vector3(1, 1, 1);
 
   for (const tier of tiers) {
-    const geometry = makeBellGeometry(tier.height);
+    const geometry = makeBellGeometry(tier.height, BELL_WIDTH);
     const stemLength = tier.height * tier.yong;
 
     for (const arm of arms) {
@@ -930,7 +1268,7 @@ export function buildChimeBells() {
         if (stemLength > 0) {
           holder.add(
             mesh(
-              new THREE.CylinderGeometry(0.045, 0.055, stemLength, 8),
+              new THREE.CylinderGeometry(0.063, 0.077, stemLength, 10),
               m.bronze,
               [
                 arm.axis === 'x' ? offset : 0,
@@ -948,12 +1286,12 @@ export function buildChimeBells() {
 
   const posts = [[0, 0], [LONG / 2, 0], [LONG - 0.45, 0], [0, -SHORT / 2], [0, -(SHORT - 0.45)]];
   for (const [x, z] of posts) {
-    inner.add(mesh(new THREE.CylinderGeometry(0.1, 0.12, POST_TOP, 12), m.lacquer, [x, POST_TOP / 2, z]));
+    inner.add(mesh(new THREE.CylinderGeometry(0.14, 0.17, POST_TOP, 14), m.lacquer, [x, POST_TOP / 2, z]));
     for (const y of [POST_TOP * 0.32, POST_TOP * 0.76]) {
-      inner.add(mesh(new THREE.CylinderGeometry(0.125, 0.125, 0.05, 12), m.gold, [x, y, z]));
+      inner.add(mesh(new THREE.CylinderGeometry(0.175, 0.175, 0.07, 14), m.gold, [x, y, z]));
     }
-    inner.add(mesh(new THREE.CylinderGeometry(0.3, 0.34, 0.16, 14), m.bronze, [x, 0.08, z]));
-    inner.add(mesh(new THREE.CylinderGeometry(0.17, 0.13, 0.12, 12), m.bronze, [x, POST_TOP + 0.02, z]));
+    inner.add(mesh(new THREE.CylinderGeometry(0.42, 0.48, 0.22, 16), m.bronze, [x, 0.11, z]));
+    inner.add(mesh(new THREE.CylinderGeometry(0.24, 0.18, 0.16, 14), m.bronze, [x, POST_TOP + 0.03, z]));
   }
 
   const box = new THREE.Box3().setFromObject(inner);

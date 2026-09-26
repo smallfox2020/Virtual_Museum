@@ -20,66 +20,66 @@ import * as tex from './textures.js';
 /* ================================================================== */
 
 export const ROOM = {
-  halfX: 15,
-  halfZ: 27,
-  height: 12,
-  thickness: 0.5,
+  halfX: 24,
+  halfZ: 40,
+  height: 14,
+  thickness: 0.6,
 };
 
-const WALL_T = 0.3;
-const DOOR_HALF = 1.7;
-const DOOR_TOP = 3.6;
+const WALL_T = 0.35;
+const DOOR_HALF = 2.6;
+const DOOR_TOP = 4.2;
 
-const CORRIDOR_HALF = 4;
-const Z_LINE = 13;
+const CORRIDOR_HALF = 6;
+const Z_LINE = 18;
 
-const PEDESTAL_HEIGHT = 1;
-const PEDESTAL_RADIUS = 0.6;
+const PEDESTAL_HEIGHT = 1.05;
+const PEDESTAL_RADIUS = 0.62;
 const FLOAT_HEIGHT = 0.45;
 
 /** 各展厅平面：[x0, x1, z0, z1] */
 const ZONES = [
-  { id: 'entrance', name: '序厅', sub: '导览 · 前言', rect: [-15, 15, 13, 27], height: 7.5, fill: '#efe9da' },
-  { id: 'corridor', name: '长廊', sub: '书画立轴', rect: [-4, 4, -13, 13], height: 6.2, fill: '#e6dfd0' },
-  { id: 'bronze', name: '青铜器厅', sub: '罍 · 鼎 · 簋 · 镜 · 壶', rect: [4, 15, 0, 13], height: 5.2, fill: '#dcd6c6' },
-  { id: 'ceramic', name: '陶瓷厅', sub: '青花 · 青瓷 · 彩陶', rect: [4, 15, -13, 0], height: 5.2, fill: '#dcd6c6' },
-  { id: 'zenghouyi', name: '曾侯乙墓展厅', sub: '尊盘 · 鉴缶 · 建鼓座', rect: [-15, -4, 0, 13], height: 5.2, fill: '#dcd6c6' },
-  { id: 'chu', name: '楚文化展厅', sub: '剑 · 鼓 · 镇墓兽', rect: [-15, -4, -13, 0], height: 5.2, fill: '#dcd6c6' },
-  { id: 'bells', name: '编钟厅', sub: '曾侯乙编钟', rect: [-15, 15, -27, -13], height: 12, fill: '#e9e2d3' },
+  { id: 'entrance', name: '序厅', sub: '导览 · 前言', rect: [-24, 24, 18, 40], height: 8.5, fill: '#efe9da' },
+  { id: 'corridor', name: '长廊', sub: '书画立轴', rect: [-6, 6, -18, 18], height: 7, fill: '#e6dfd0' },
+  { id: 'bronze', name: '青铜器厅', sub: '罍 · 鼎 · 簋 · 镜 · 壶', rect: [6, 24, 0, 18], height: 6, fill: '#dcd6c6' },
+  { id: 'ceramic', name: '陶瓷厅', sub: '青花 · 青瓷 · 彩陶', rect: [6, 24, -18, 0], height: 6, fill: '#dcd6c6' },
+  { id: 'zenghouyi', name: '曾侯乙墓展厅', sub: '尊盘 · 鉴缶 · 建鼓座', rect: [-24, -6, 0, 18], height: 6, fill: '#dcd6c6' },
+  { id: 'chu', name: '楚文化展厅', sub: '剑 · 鼓 · 镇墓兽', rect: [-24, -6, -18, 0], height: 6, fill: '#dcd6c6' },
+  { id: 'bells', name: '编钟厅', sub: '曾侯乙编钟', rect: [-24, 24, -40, -18], height: 14, fill: '#e9e2d3' },
 ];
 
 const zone = (id) => ZONES.find((item) => item.id === id);
 
 /** 观众出生点（序厅中轴） */
-const SPAWN = [0, 22.5];
+const SPAWN = [0, 33];
 
-/** 隔墙中心线，供几何与导览图共用 */
+/** 隔墙中心线，供几何与导览图共用（门洞开在长廊两侧 z = ±9.5） */
 const WALL_SEGMENTS = [
-  // 长廊西墙（留出曾侯乙墓厅与楚文化厅两个门洞）
-  [-CORRIDOR_HALF, -Z_LINE, -CORRIDOR_HALF, -8.2],
-  [-CORRIDOR_HALF, -4.8, -CORRIDOR_HALF, 4.8],
-  [-CORRIDOR_HALF, 8.2, -CORRIDOR_HALF, Z_LINE],
+  // 长廊西墙
+  [-CORRIDOR_HALF, -Z_LINE, -CORRIDOR_HALF, -12.1],
+  [-CORRIDOR_HALF, -6.9, -CORRIDOR_HALF, 6.9],
+  [-CORRIDOR_HALF, 12.1, -CORRIDOR_HALF, Z_LINE],
   // 长廊东墙
-  [CORRIDOR_HALF, -Z_LINE, CORRIDOR_HALF, -8.2],
-  [CORRIDOR_HALF, -4.8, CORRIDOR_HALF, 4.8],
-  [CORRIDOR_HALF, 8.2, CORRIDOR_HALF, Z_LINE],
+  [CORRIDOR_HALF, -Z_LINE, CORRIDOR_HALF, -12.1],
+  [CORRIDOR_HALF, -6.9, CORRIDOR_HALF, 6.9],
+  [CORRIDOR_HALF, 12.1, CORRIDOR_HALF, Z_LINE],
   // 侧厅与序厅之间
-  [-15, Z_LINE, -CORRIDOR_HALF, Z_LINE],
-  [CORRIDOR_HALF, Z_LINE, 15, Z_LINE],
+  [-24, Z_LINE, -CORRIDOR_HALF, Z_LINE],
+  [CORRIDOR_HALF, Z_LINE, 24, Z_LINE],
   // 侧厅与编钟厅之间
-  [-15, -Z_LINE, -CORRIDOR_HALF, -Z_LINE],
-  [CORRIDOR_HALF, -Z_LINE, 15, -Z_LINE],
+  [-24, -Z_LINE, -CORRIDOR_HALF, -Z_LINE],
+  [CORRIDOR_HALF, -Z_LINE, 24, -Z_LINE],
   // 同侧两个展厅之间
-  [-15, 0, -CORRIDOR_HALF, 0],
-  [CORRIDOR_HALF, 0, 15, 0],
+  [-24, 0, -CORRIDOR_HALF, 0],
+  [CORRIDOR_HALF, 0, 24, 0],
 ];
 
 /** 门洞（画在导览图上） */
 const DOOR_SIGNS = [
-  { x: CORRIDOR_HALF, z: 6.5, name: '青铜器厅', sub: 'BRONZE HALL' },
-  { x: CORRIDOR_HALF, z: -6.5, name: '陶瓷厅', sub: 'CERAMICS' },
-  { x: -CORRIDOR_HALF, z: 6.5, name: '曾侯乙墓展厅', sub: 'ZENGHOUYI TOMB' },
-  { x: -CORRIDOR_HALF, z: -6.5, name: '楚文化展厅', sub: 'CHU CULTURE' },
+  { x: CORRIDOR_HALF, z: 9.5, name: '青铜器厅', sub: 'BRONZE HALL' },
+  { x: CORRIDOR_HALF, z: -9.5, name: '陶瓷厅', sub: 'CERAMICS' },
+  { x: -CORRIDOR_HALF, z: 9.5, name: '曾侯乙墓展厅', sub: 'ZENGHOUYI TOMB' },
+  { x: -CORRIDOR_HALF, z: -9.5, name: '楚文化展厅', sub: 'CHU CULTURE' },
 ];
 
 /* ------------------------------------------------------------------ */
@@ -91,14 +91,13 @@ const SCROLL_KINDS = ['shanshui', 'zhuzi', 'shufa', 'huaniao', 'shanshui', 'shuf
 const SCROLLS = [
   { kind: 'shanshui', title: '楚山烟雨图', tag: '立轴 · 纸本水墨', desc: '烟云横锁，远峰只用淡墨一抹。楚地多水，画家把「空」留给了江面，也留给了看画的人。' },
   { kind: 'zhuzi', title: '墨竹图轴', tag: '立轴 · 纸本墨笔', desc: '竹竿用中锋写出，节节分明；竹叶以「个」字、「介」字叠排，一笔下去便有风。' },
-  { kind: 'shufa', title: '行书七言诗轴', tag: '立轴 · 纸本墨书', desc: '行书讲究「行而不断」，笔锋在纸上提按转折，字与字之间靠气脉相连，而不是靠连笔。' },
   { kind: 'huaniao', title: '梅花山雀图', tag: '立轴 · 纸本设色', desc: '梅枝自左下斜出，花朵用没骨法点染，一只山雀收翅立于枝头，整幅画的重心就落在它的爪上。' },
-  { kind: 'shanshui', title: '长江万里图（局部）', tag: '长卷 · 纸本水墨', desc: '长江出三峡、过江汉，画面上是连绵的水与山。长卷要一段段展开来看，观者的视线就是行船的路线。' },
   { kind: 'shufa', title: '隶书对联', tag: '对联 · 纸本墨书', desc: '隶书横画「蚕头燕尾」，一字之中有一笔主笔舒展，其余笔画收敛，整幅便稳如磐石。' },
 ];
 
-/** 长廊两侧各 6 幅，避开两个门洞 */
-const SCROLL_SLOTS = [-11.8, -9.2, -2.4, 2.4, 9.2, 11.8];
+/** 长廊两侧各 8 幅，避开 z = ±9.5 的两个门洞（门洞占 6.9 ~ 12.1） */
+// 必须避开两个门洞（z 的 -12.1~-6.9 与 6.9~12.1），否则画会挂在门洞里悬空
+const SCROLL_SLOTS = [-16.5, -14, -4.5, -1.5, 1.5, 4.5, 14, 16.5];
 
 /* ------------------------------------------------------------------ */
 /* 展板                                                                */
@@ -112,77 +111,77 @@ const PANELS = [
   },
   {
     wall: 'south',
-    offset: -10,
+    offset: -16,
     title: '前言',
     subtitle: 'PREFACE',
     body: '荆楚大地，长江中游。这里出土过改写中国音乐史的编钟，也出土过见证春秋霸业的青铜剑。展厅沿一条中央长廊展开：南端是序厅，北端是通高的编钟厅，两侧分别是曾侯乙墓、楚文化、青铜器与陶瓷四个展厅。',
   },
   {
     wall: 'south',
-    offset: 10,
+    offset: 16,
     title: '参观路线',
     subtitle: 'ROUTE',
     body: '由序厅向北进入长廊，长廊两侧是书画立轴与四个展厅的门洞；走到长廊尽头便进入编钟厅，曾侯乙编钟正悬在厅的正中。走近任意展品或展板按 E 查看介绍，在介绍界面按 O 可以单独观察这件器物。',
   },
   {
     wall: 'east',
-    offset: 6.5,
+    offset: 9,
     title: '青铜礼乐',
     subtitle: 'RITUAL BRONZE',
     body: '青铜器是先秦的「礼器」：鼎盛肉、簋盛黍稷、罍与壶盛酒。它们的数量与组合规定了使用者的身份，「钟鸣鼎食」说的正是这套制度。',
   },
   {
     wall: 'east',
-    offset: 10.5,
+    offset: 14.5,
     title: '铜罍与铜镜',
     subtitle: 'LEI AND MIRROR',
     body: '罍是大型盛酒器，小口广肩，肩上有衔环；铜镜的正面打磨光洁可以照容，背面则铸出蟠螭纹与弦纹，是青铜器中少见的「生活用器」。',
   },
   {
     wall: 'east',
-    offset: -6.5,
+    offset: -9,
     title: '土与火的艺术',
     subtitle: 'CLAY AND FIRE',
     body: '从屈家岭的彩陶到元代的青花，湖北的陶瓷史横跨五千年。高岭土与钴蓝在窑火中相遇，才有了梅瓶上那一抹永不褪色的蓝。',
   },
   {
     wall: 'east',
-    offset: -10.5,
+    offset: -14.5,
     title: '元青花',
     subtitle: 'BLUE AND WHITE',
     body: '元青花以进口的苏麻离青为料，发色浓艳并带有铁锈斑。人物故事题材存世极少，腹部四面开光的「四爱图」梅瓶是其中最完整的一件。',
   },
   {
     wall: 'west',
-    offset: 6.5,
+    offset: 9,
     title: '曾侯乙墓',
     subtitle: 'ZENGHOUYI TOMB',
     body: '1978 年发掘于随州擂鼓墩。墓主是战国早期曾国的国君乙，随葬品一万五千余件，其中青铜器总重约十吨，被称为「二十世纪最重要的考古发现之一」。',
   },
   {
     wall: 'west',
-    offset: 10.5,
+    offset: 14.5,
     title: '一钟双音',
     subtitle: 'TWO TONES',
     body: '曾侯乙编钟的每一件钟都能敲出两个乐音：正鼓音与侧鼓音。合瓦形的钟体让两音互不干扰，钟体上的铭文则记录了两千四百年前的乐律体系。',
   },
   {
     wall: 'west',
-    offset: -6.5,
+    offset: -9,
     title: '楚文化',
     subtitle: 'CHU CULTURE',
     body: '楚人尚赤、尚巫、尚凤。漆器以黑漆为地、朱漆为纹，青铜器走向细密繁复的失蜡工艺。楚文化的精神，一半是奇诡的想象，一半是精密的技艺。',
   },
   {
     wall: 'west',
-    offset: -10.5,
+    offset: -14.5,
     title: '越王勾践剑',
     subtitle: 'THE SWORD',
     body: '1965 年江陵望山一号楚墓出土。剑身满饰菱形暗格纹，近格处铸鸟篆铭文「越王鸠浅自作用剑」。出土时寒光凛冽、几乎不见锈蚀，被誉为「天下第一剑」。',
   },
   {
     wall: 'north',
-    offset: -10,
+    offset: -16,
     title: '曾侯乙编钟',
     subtitle: 'CHIME BELLS',
     body: '六十五件青铜编钟分三层八组悬挂在曲尺形钟架上，总重两千五百余公斤。钟体与钟枚上共有三千七百余字铭文，音域跨五个半八度。',
@@ -196,10 +195,51 @@ const PANELS = [
   },
   {
     wall: 'north',
-    offset: 10,
+    offset: 16,
     title: '乐悬制度',
     subtitle: 'MUSIC RITUAL',
     body: '「王宫悬，诸侯轩悬」。钟磬的悬挂方式本身就是等级：曾侯乙以诸侯之礼下葬，曲尺形的三面钟架正合「轩悬」之制。',
+  },  {
+    wall: 'east',
+    offset: 4,
+    title: '青铜器的组合',
+    subtitle: 'RITUAL SETS',
+    body: '鼎与簋成套、盘与匜配套、罍与壶并列。青铜礼器从来不是单件欣赏的对象，而是一整套制度的外化：用鼎用簋的数量，直接对应墓主人的身份。',
+  },
+  {
+    wall: 'east',
+    offset: -4,
+    title: '陶与瓷之间',
+    subtitle: 'FROM CLAY TO PORCELAIN',
+    body: '陶器烧成温度约 1000 ℃，瓷器要到 1300 ℃ 以上，差别在原料与釉。从硬陶到原始青瓷，中间隔着一千多年对窑温的控制。',
+  },
+  {
+    wall: 'west',
+    offset: 4,
+    title: '楚式漆器',
+    subtitle: 'CHU LACQUER',
+    body: '漆器的胎是木或夹纻，髹漆数十道，再以朱漆描绘云凤纹。它比铜器轻、比陶器韧，能做出极自由的曲线。',
+  },
+  {
+    wall: 'west',
+    offset: -4,
+    title: '楚人的宇宙观',
+    subtitle: 'CHU COSMOLOGY',
+    body: '璧圆象天、琮方象地；凤鸟引魂升天、镇墓兽守御地下。楚墓的随葬品组合，本身就是一套关于天地人的想象。',
+  },
+  {
+    wall: 'north',
+    offset: 12.5,
+    title: '编磬与金石之乐',
+    subtitle: 'STONE CHIMES',
+    body: '磬用石灰岩打磨而成，音高取决于石片的长度与厚度。钟与磬合奏即「金石之乐」，是先秦礼乐的最高形式。',
+  },
+  {
+    wall: 'north',
+    offset: -12.5,
+    title: '钟架上的铭文',
+    subtitle: 'INSCRIPTIONS',
+    body: '曾侯乙编钟共刻有三千七百余字铭文，记下曾、楚、齐、晋等国的律名对照。它同时是一部乐律学著作。',
   },
 ];
 
@@ -215,58 +255,246 @@ const PALETTE = {
   ink: 0x2a2f3a,
 };
 
+/** 墙裙高度（模块级：外层墙与隔墙共用） */
+const SKIRT_H = 1.2;
+
+/** 建筑表面材质做成单例：外层墙与隔墙共用同一份贴图，省显存也保证观感一致 */
+let shellMaterials = null;
+function getShellMaterials() {
+  if (shellMaterials) return shellMaterials;
+  const skirtCanvas = tex.makeSkirtingCanvas();
+  // 四种墙面做法：米白抹灰 / 暖砂壁 / 浅灰石材对缝 / 深色展墙
+  const wallVariants = [0, 1, 2, 3].map((v) => new THREE.MeshStandardMaterial({
+    ...surfaceSet(tex.makeWallCanvas(v), { normalStrength: 1.3, roughnessRange: [0.72, 0.98] }),
+    roughness: 1,
+    metalness: 0.02,
+  }));
+  shellMaterials = {
+    walls: wallVariants,
+    wall: wallVariants[0],
+    skirt: new THREE.MeshStandardMaterial({
+      ...surfaceSet(skirtCanvas, { repeat: [3, 0.6], normalStrength: 1.1, roughnessRange: [0.24, 0.8] }),
+      roughness: 1,
+      metalness: 0.12,
+    }),
+    trim: new THREE.MeshStandardMaterial({ color: PALETTE.red, roughness: 0.6 }),
+    gold: new THREE.MeshStandardMaterial({ color: 0xc79a2c, roughness: 0.35, metalness: 0.85 }),
+  };
+  return shellMaterials;
+}
+/** 窗户玻璃与窗框 */
+let windowMaterials = null;
+function getWindowMaterials() {
+  if (windowMaterials) return windowMaterials;
+  windowMaterials = {
+    // 自发光玻璃：读起来就是“外面有日光”，又不用额外加灯
+    glassMaterial: new THREE.MeshStandardMaterial({
+      color: 0xdff0ff,
+      emissive: 0xcfe8ff,
+      emissiveIntensity: 1.15,
+      roughness: 0.12,
+      metalness: 0.1,
+      transparent: true,
+      opacity: 0.62,
+      side: THREE.DoubleSide,
+    }),
+    frameMaterial: new THREE.MeshStandardMaterial({ color: 0x2a2018, roughness: 0.5, metalness: 0.35 }),
+  };
+  return windowMaterials;
+}
+
+/** @param {number} variant 0~3，不同的墙面做法 */
+const getWallMaterial = (variant = 0) => getShellMaterials().walls[variant % 4];
+const getSkirtMaterial = () => getShellMaterials().skirt;
+const getTrimMaterial = () => getShellMaterials().trim;
+
+/**
+ * 按世界尺寸缩放 BoxGeometry 的 UV。
+ *
+ * BoxGeometry 每个面的 UV 都是 0~1，直接贴图会被拉伸成不同密度；
+ * 按面的实际世界尺寸乘一遍，整馆的贴图密度就一致了（不会出现大门边上的砖特别大）。
+ */
+function scaleBoxUV(geometry, size, tile = 2) {
+  const [width, height, depth] = size;
+  const uv = geometry.attributes.uv;
+  // 面顺序：+x, -x, +y, -y, +z, -z，每面 4 个顶点
+  const faces = [
+    [depth, height], [depth, height],
+    [width, depth], [width, depth],
+    [width, height], [width, height],
+  ];
+  for (let f = 0; f < 6; f += 1) {
+    const [su, sv] = faces[f];
+    for (let i = f * 4; i < f * 4 + 4; i += 1) {
+      uv.setXY(i, (uv.getX(i) * su) / tile, (uv.getY(i) * sv) / tile);
+    }
+  }
+  uv.needsUpdate = true;
+}
+
+/** 由一张颜色画布派生出 map / normalMap / roughnessMap 三件套 */
+function surfaceSet(canvas, { repeat, normalStrength = 2, roughnessRange, srgb = true } = {}) {
+  return {
+    map: tex.canvasTexture(canvas, { repeat, srgb }),
+    normalMap: tex.canvasTexture(tex.makeNormalMap(canvas, normalStrength), { repeat, srgb: false }),
+    roughnessMap: tex.canvasTexture(tex.makeRoughnessMap(canvas, ...(roughnessRange || [])), { repeat, srgb: false }),
+  };
+}
+
 function buildShell(scene) {
   const { halfX, halfZ, height, thickness } = ROOM;
+  const FLOOR_TILE = 1.2;   // 地砖边长（米）
+  const WALL_TILE = 2.2;    // 墙面贴图覆盖的世界尺寸
 
+  // ---------- 地面：石材 + 法线 + 粗糙度 ----------
+  const floorCanvas = tex.makeStoneFloorCanvas();
+  const floorRepeat = [(halfX * 2) / FLOOR_TILE / 4, (halfZ * 2) / FLOOR_TILE / 4];
   const floor = new THREE.Mesh(
     new THREE.PlaneGeometry(halfX * 2, halfZ * 2),
-    new THREE.MeshStandardMaterial({ map: tex.makeFloorTexture(halfX, halfZ), roughness: 0.8, metalness: 0.06 }),
+    new THREE.MeshStandardMaterial({
+      ...surfaceSet(floorCanvas, { repeat: floorRepeat, normalStrength: 2.6, roughnessRange: [0.12, 0.9] }),
+      color: 0xffffff,
+      roughness: 1,
+      metalness: 0.08,
+      envMapIntensity: 0.32,
+    }),
   );
   floor.rotation.x = -Math.PI / 2;
   floor.receiveShadow = true;
   scene.add(floor);
 
-  const wallMaterial = new THREE.MeshStandardMaterial({ color: PALETTE.wall, roughness: 0.92 });
-  const walls = [
-    { size: [halfX * 2 + thickness * 2, height, thickness], pos: [0, height / 2, -halfZ - thickness / 2] },
-    { size: [halfX * 2 + thickness * 2, height, thickness], pos: [0, height / 2, halfZ + thickness / 2] },
-    { size: [thickness, height, halfZ * 2 + thickness * 2], pos: [-halfX - thickness / 2, height / 2, 0] },
-    { size: [thickness, height, halfZ * 2 + thickness * 2], pos: [halfX + thickness / 2, height / 2, 0] },
-  ];
-  for (const { size, pos } of walls) {
-    const wall = new THREE.Mesh(new THREE.BoxGeometry(...size), wallMaterial);
-    wall.position.set(...pos);
-    wall.receiveShadow = true;
-    scene.add(wall);
-  }
+  // ---------- 外墙：灰浆墙皮 + 窗洞 ----------
+  // 注意：四面墙不能都是“全长”，否则四个角会互相穿插。
+  // 这里 x 向两面留全长，z 向两面减去角上的厚度，墙角就干净了。
+  const { glassMaterial, frameMaterial: winFrame } = getWindowMaterials();
+  const WIN = { width: 3.6, sill: 2.6, head: 5.8 };
+  // 窗位刻意避开墙上的展板（序厅/编钟厅的展板在 x = 0、±16 附近）
+  // 可用的空档是 |x| ∈ [2, 14.7] 与 [17.3, 24]，所以取 ±8.35 与 ±20.6
+  const WINDOW_CENTERS = [-20.6, -8.35, 8.35, 20.6];
 
-  // 黑漆踢脚
-  const skirtMaterial = new THREE.MeshStandardMaterial({ color: 0x1b1620, roughness: 0.55 });
-  const skirtHeight = 0.26;
+  const buildWallSegment = ({ axis, at, half, inner, variant = 0, centers = null }) => {
+    const span = half * 2;
+    const thickness2 = ROOM.thickness;
+
+    const put = (w, h, offset, y) => {
+      const size = axis === 'x' ? [w, h, thickness2] : [thickness2, h, w];
+      const geometry = new THREE.BoxGeometry(...size);
+      scaleBoxUV(geometry, size, WALL_TILE);
+      const box = new THREE.Mesh(geometry, getWallMaterial(variant));
+      box.position.set(axis === 'x' ? offset : at, y, axis === 'x' ? at : offset);
+      box.receiveShadow = true;
+      scene.add(box);
+    };
+
+    // 不开窗：整面实墙
+    if (!centers || !centers.length) {
+      put(span, ROOM.height, 0, ROOM.height / 2);
+      return;
+    }
+
+    // 窗下墙与窗上墙：通长
+    put(span, WIN.sill, 0, WIN.sill / 2);
+    put(span, ROOM.height - WIN.head, 0, (ROOM.height + WIN.head) / 2);
+
+    // 墙垛：窗户之间以及与墙端之间
+    const sorted = [...centers].sort((a, b) => a - b);
+    const piers = [];
+    let cursor = -half;
+    for (const center of sorted) {
+      const left = center - WIN.width / 2;
+      if (left - cursor > 0.05) piers.push([cursor, left]);
+      cursor = center + WIN.width / 2;
+    }
+    if (half - cursor > 0.05) piers.push([cursor, half]);
+    for (const [a2, b2] of piers) put(b2 - a2, WIN.head - WIN.sill, (a2 + b2) / 2, (WIN.head + WIN.sill) / 2);
+
+    // 玻璃与窗框
+    const glassPlane = at + inner * (thickness2 / 2 + 0.03);
+    for (const center of sorted) {
+      const glass = new THREE.Mesh(
+        new THREE.PlaneGeometry(WIN.width * 0.92, WIN.head - WIN.sill - 0.22),
+        glassMaterial,
+      );
+      glass.position.set(axis === 'x' ? center : glassPlane, (WIN.head + WIN.sill) / 2, axis === 'x' ? glassPlane : center);
+      glass.rotation.y = axis === 'x' ? (inner > 0 ? 0 : Math.PI) : (inner > 0 ? Math.PI / 2 : -Math.PI / 2);
+      scene.add(glass);
+
+      const t = 0.09;
+      const H = WIN.head - WIN.sill;
+      const bars = [
+        [WIN.width, t, 0, H / 2 - t / 2],
+        [WIN.width, t, 0, -H / 2 + t / 2],
+        [t, H, -WIN.width / 2 + t / 2, 0],
+        [t, H, WIN.width / 2 - t / 2, 0],
+        [t * 0.7, H, 0, 0],
+      ];
+      for (const [bw, bh, box2, boy] of bars) {
+        const geo = axis === 'x'
+          ? new THREE.BoxGeometry(bw, bh, thickness2 * 0.5)
+          : new THREE.BoxGeometry(thickness2 * 0.5, bh, bw);
+        const bar = new THREE.Mesh(geo, winFrame);
+        bar.position.set(
+          axis === 'x' ? center + box2 : glassPlane,
+          (WIN.head + WIN.sill) / 2 + boy,
+          axis === 'x' ? glassPlane : center + box2,
+        );
+        scene.add(bar);
+      }
+    }
+  };
+
+  // 南北两面（序厅、编钟厅）带窗；东西两面是四个侧厅，用实墙
+  buildWallSegment({ axis: 'x', at: -halfZ - ROOM.thickness / 2, half: halfX + ROOM.thickness, inner: 1, variant: 0, centers: WINDOW_CENTERS });
+  buildWallSegment({ axis: 'x', at: halfZ + ROOM.thickness / 2, half: halfX + ROOM.thickness, inner: -1, variant: 1, centers: WINDOW_CENTERS });
+  buildWallSegment({ axis: 'z', at: -halfX - ROOM.thickness / 2, half: halfZ, inner: 1, variant: 0, centers: null });
+  buildWallSegment({ axis: 'z', at: halfX + ROOM.thickness / 2, half: halfZ, inner: -1, variant: 1, centers: null });
+
+  // ---------- 墙裙 + 腰线：深色石材基座，顶部一道鎏金压边 ----------
+  const skirtMaterial = getSkirtMaterial();
+  const trimMaterial = getShellMaterials().gold;
+  const SKIRT_T = 0.16;
+  // 南北两条留全长，东西两条缩短一个墙裙厚度，四角不再互相穿插
+  // 注意：外表面要比墙面**内退 6mm**。原来贴着墙面（间距 0）两个面深度相同，
+  // 显卡在远处分不清谁在前，就会一闪一闪（z-fighting）。
+  // 墙裙与墙面的关系要留两道余量，否则底面/侧面会与地面和墙面共面闪烁：
+  //   · 外表面比墙面内退 12mm（原来 6mm 在远处深度精度不够）
+  //   · 底面上抬 4mm，不和地面在同一平面
+  const INSET = 0.012;
+  const LIFT = 0.004;
+  const CY = SKIRT_H / 2 + LIFT;
   const skirts = [
-    { size: [halfX * 2, skirtHeight, 0.08], pos: [0, skirtHeight / 2, -halfZ + 0.04] },
-    { size: [halfX * 2, skirtHeight, 0.08], pos: [0, skirtHeight / 2, halfZ - 0.04] },
-    { size: [0.08, skirtHeight, halfZ * 2], pos: [-halfX + 0.04, skirtHeight / 2, 0] },
-    { size: [0.08, skirtHeight, halfZ * 2], pos: [halfX - 0.04, skirtHeight / 2, 0] },
+    { size: [halfX * 2, SKIRT_H, SKIRT_T], pos: [0, CY, -halfZ + SKIRT_T / 2 + INSET] },
+    { size: [halfX * 2, SKIRT_H, SKIRT_T], pos: [0, CY, halfZ - SKIRT_T / 2 - INSET] },
+    { size: [SKIRT_T, SKIRT_H, halfZ * 2 - SKIRT_T * 2], pos: [-halfX + SKIRT_T / 2 + INSET, CY, 0] },
+    { size: [SKIRT_T, SKIRT_H, halfZ * 2 - SKIRT_T * 2], pos: [halfX - SKIRT_T / 2 - INSET, CY, 0] },
   ];
   for (const { size, pos } of skirts) {
-    const skirt = new THREE.Mesh(new THREE.BoxGeometry(...size), skirtMaterial);
+    const geometry = new THREE.BoxGeometry(...size);
+    scaleBoxUV(geometry, size, 1.6);
+    const skirt = new THREE.Mesh(geometry, skirtMaterial);
     skirt.position.set(...pos);
+    skirt.receiveShadow = true;
     scene.add(skirt);
+
+    const trim = new THREE.Mesh(
+      new THREE.BoxGeometry(size[0] + 0.02, 0.09, size[2] + 0.02),
+      trimMaterial,
+    );
+    trim.position.set(pos[0], SKIRT_H + LIFT + 0.04, pos[2]);
+    scene.add(trim);
   }
 
-  // 长廊地面嵌线：把长廊与两侧展厅分开
+  // ---------- 长廊地面嵌线 ----------
   const inlay = new THREE.MeshStandardMaterial({ color: PALETTE.red, roughness: 0.6 });
   for (const x of [-CORRIDOR_HALF, CORRIDOR_HALF]) {
-    const line = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.02, Z_LINE * 2), inlay);
-    line.position.set(x, 0.012, 0);
+    const line = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.03, Z_LINE * 2), inlay);
+    line.position.set(x, 0.022, 0);
     scene.add(line);
   }
 
   buildCeilings(scene);
 }
 
-/** 每个展厅一块吊顶；长廊与编钟厅留出天窗 */
 function buildCeilings(scene) {
   const slab = (rect, y, repeatScale = 2) => {
     const [x0, x1, z0, z1] = rect;
@@ -289,18 +517,18 @@ function buildCeilings(scene) {
 
   // 长廊：中间留一条天窗光带
   const ch = zone('corridor').height;
-  slab([-CORRIDOR_HALF, -1, -Z_LINE, Z_LINE], ch);
-  slab([1, CORRIDOR_HALF, -Z_LINE, Z_LINE], ch);
+  slab([-CORRIDOR_HALF, -2, -Z_LINE, Z_LINE], ch);
+  slab([2, CORRIDOR_HALF, -Z_LINE, Z_LINE], ch);
   const stripGlass = new THREE.Mesh(
-    new THREE.PlaneGeometry(2, Z_LINE * 2),
+    new THREE.PlaneGeometry(4, Z_LINE * 2),
     new THREE.MeshBasicMaterial({ map: tex.makeSkylightTexture(), side: THREE.DoubleSide }),
   );
   stripGlass.rotation.x = Math.PI / 2;
   stripGlass.position.set(0, ch + 0.7, 0);
   scene.add(stripGlass);
-  for (const x of [-1, 1]) {
+  for (const x of [-2, 2]) {
     const well = new THREE.Mesh(
-      new THREE.BoxGeometry(0.24, 0.9, Z_LINE * 2),
+      new THREE.BoxGeometry(0.28, 1.1, Z_LINE * 2),
       new THREE.MeshStandardMaterial({ color: 0xcfc7b8, roughness: 0.85 }),
     );
     well.position.set(x, ch + 0.35, 0);
@@ -309,11 +537,11 @@ function buildCeilings(scene) {
 
   // 编钟厅：方形天窗
   const bh = zone('bells').height;
-  const sky = { x0: -4.5, x1: 4.5, z0: -23.5, z1: -16.5 };
-  slab([-15, 15, -27, sky.z0], bh);
-  slab([-15, 15, sky.z1, -13], bh);
-  slab([-15, sky.x0, sky.z0, sky.z1], bh);
-  slab([sky.x1, 15, sky.z0, sky.z1], bh);
+  const sky = { x0: -7, x1: 7, z0: -34.5, z1: -23.5 };
+  slab([-24, 24, -40, sky.z0], bh);
+  slab([-24, 24, sky.z1, -18], bh);
+  slab([-24, sky.x0, sky.z0, sky.z1], bh);
+  slab([sky.x1, 24, sky.z0, sky.z1], bh);
   const skyGlass = new THREE.Mesh(
     new THREE.PlaneGeometry(sky.x1 - sky.x0, sky.z1 - sky.z0),
     new THREE.MeshBasicMaterial({ map: tex.makeSkylightTexture(), side: THREE.DoubleSide }),
@@ -343,14 +571,18 @@ function buildCeilings(scene) {
     roughness: 0.5,
   });
   const strips = [
-    { size: [0.4, 0.1, Z_LINE * 1.7], pos: [-3.5, ch - 0.06, 0] },
-    { size: [0.4, 0.1, Z_LINE * 1.7], pos: [3.5, ch - 0.06, 0] },
-    { size: [0.4, 0.1, 10], pos: [12.5, 5.05, 4] },
-    { size: [0.4, 0.1, 10], pos: [12.5, 5.05, -4] },
-    { size: [0.4, 0.1, 10], pos: [-12.5, 5.05, 4] },
-    { size: [0.4, 0.1, 10], pos: [-12.5, 5.05, -4] },
-    { size: [14, 0.12, 0.4], pos: [0, 7.35, 17] },
-    { size: [14, 0.12, 0.4], pos: [0, 7.35, 23] },
+    { size: [0.5, 0.1, Z_LINE * 1.7], pos: [-5.2, ch - 0.06, 0] },
+    { size: [0.5, 0.1, Z_LINE * 1.7], pos: [5.2, ch - 0.06, 0] },
+    { size: [0.5, 0.1, 14], pos: [20.5, 5.85, 9] },
+    { size: [0.5, 0.1, 14], pos: [20.5, 5.85, -9] },
+    { size: [0.5, 0.1, 14], pos: [-20.5, 5.85, 9] },
+    { size: [0.5, 0.1, 14], pos: [-20.5, 5.85, -9] },
+    { size: [0.5, 0.1, 18], pos: [11, 5.85, 9] },
+    { size: [0.5, 0.1, 18], pos: [11, 5.85, -9] },
+    { size: [0.5, 0.1, 18], pos: [-11, 5.85, 9] },
+    { size: [0.5, 0.1, 18], pos: [-11, 5.85, -9] },
+    { size: [22, 0.14, 0.5], pos: [0, 8.35, 22] },
+    { size: [22, 0.14, 0.5], pos: [0, 8.35, 33] },
   ];
   for (const { size, pos } of strips) {
     const strip = new THREE.Mesh(new THREE.BoxGeometry(...size), stripMaterial);
@@ -361,16 +593,15 @@ function buildCeilings(scene) {
 
 /** 隔墙、门楣、匾额 */
 function buildPartitions(scene, colliders) {
-  const wallMaterial = new THREE.MeshStandardMaterial({ color: PALETTE.wall, roughness: 0.9 });
-  const trimMaterial = new THREE.MeshStandardMaterial({ color: PALETTE.red, roughness: 0.6 });
+  const trimMaterial = getTrimMaterial();
 
-  for (const [x0, z0, x1, z1] of WALL_SEGMENTS) {
+  for (const [segmentIndex, [x0, z0, x1, z1]] of WALL_SEGMENTS.entries()) {
     const width = Math.abs(x1 - x0) || WALL_T;
     const depth = Math.abs(z1 - z0) || WALL_T;
     const alongCorridor = Math.abs(x1 - x0) < 0.001;
     const height = alongCorridor ? zone('corridor').height : zone('bronze').height;
 
-    const wall = new THREE.Mesh(new THREE.BoxGeometry(width, height, depth), wallMaterial);
+    const wall = new THREE.Mesh(new THREE.BoxGeometry(width, height, depth), getWallMaterial(segmentIndex));
     wall.position.set((x0 + x1) / 2, height / 2, (z0 + z1) / 2);
     wall.castShadow = true;
     wall.receiveShadow = true;
@@ -378,9 +609,14 @@ function buildPartitions(scene, colliders) {
 
     colliders.push({ x: (x0 + x1) / 2, z: (z0 + z1) / 2, halfX: width / 2, halfZ: depth / 2 });
 
-    const cap = new THREE.Mesh(new THREE.BoxGeometry(width + 0.06, 0.16, depth + 0.06), trimMaterial);
-    cap.position.set((x0 + x1) / 2, height + 0.08, (z0 + z1) / 2);
+    const cap = new THREE.Mesh(new THREE.BoxGeometry(width + 0.06, 0.12, depth + 0.06), trimMaterial);
+    cap.position.set((x0 + x1) / 2, height - 0.06, (z0 + z1) / 2);
     scene.add(cap);
+
+    // 隔墙不再做墙裙与腰线。
+    // 原因：门洞就开在这些隔墙上，墙裙端头必然与白色墙面、门框咬在一起，
+    // 远近不同的深度精度下就会闪。既然观感上只是墙脚一条深色带，
+    // 直接去掉最干净——墙裙只保留在没有门洞的外墙上。
   }
 
   // 长廊两端的大开口：门楣 + 匾额
@@ -388,7 +624,7 @@ function buildPartitions(scene, colliders) {
     [Z_LINE, '序厅', 'PREFACE HALL'],
     [-Z_LINE, '编钟厅', 'CHIME BELL HALL'],
   ]) {
-    const beam = new THREE.Mesh(new THREE.BoxGeometry(CORRIDOR_HALF * 2 + WALL_T * 2, 1.8, WALL_T), wallMaterial);
+    const beam = new THREE.Mesh(new THREE.BoxGeometry(CORRIDOR_HALF * 2 + WALL_T * 2, 1.8, WALL_T), getWallMaterial(2));
     beam.position.set(0, zone('corridor').height - 0.9, z);
     scene.add(beam);
     addSign(scene, name, sub, [0, zone('corridor').height - 1.0, z + (z > 0 ? 0.2 : -0.2)], z > 0 ? Math.PI : 0, 3.6);
@@ -398,7 +634,7 @@ function buildPartitions(scene, colliders) {
   for (const door of DOOR_SIGNS) {
     const lintel = new THREE.Mesh(
       new THREE.BoxGeometry(WALL_T, zone('corridor').height - DOOR_TOP, DOOR_HALF * 2),
-      wallMaterial,
+      getWallMaterial(0),
     );
     lintel.position.set(door.x, (zone('corridor').height + DOOR_TOP) / 2, door.z);
     scene.add(lintel);
@@ -441,7 +677,8 @@ function buildScrolls(scene, interactables) {
     for (const z of SCROLL_SLOTS) {
       const data = SCROLLS[index % SCROLLS.length];
       const group = new THREE.Group();
-      group.position.set(side * (CORRIDOR_HALF - 0.16), 2.55, z);
+      // 贴到墙面内表面：墙以 CORRIDOR_HALF 为中心线，厚度 WALL_T，再留 7cm 挂件余量
+      group.position.set(side * (CORRIDOR_HALF - WALL_T / 2 - 0.07), 2.55, z);
       group.rotation.y = side > 0 ? -Math.PI / 2 : Math.PI / 2;
 
       const texture = tex.makeScrollTexture(data.kind, index);
@@ -536,9 +773,9 @@ function buildPanel(scene, config, interactables) {
 /** 序厅里的小木台，上面放着一只签筒，靠近后按 E 打开抽签小游戏 */
 function buildFortuneStand(scene, colliders, interactables) {
   const m = materials();
-  const x = 5.4;
-  // 背靠序厅北面的隔墙（z = 13），桌子正面朝南
-  const z = 13.6;
+  // 放在长廊入口（z = 18，开口 x ∈ [-6, 6]）的东侧，背靠隔墙、正面朝序厅
+  const x = 7.6;
+  const z = 18.7;
   const group = new THREE.Group();
   group.position.set(x, 0, z);
 
@@ -618,6 +855,8 @@ function buildFortuneStand(scene, colliders, interactables) {
   );
   sign.position.set(0, 0.78, 0.365);
   group.add(sign);
+  // 默认朝 +z：不旋转即正面朝序厅内侧（游客从厅内走过来正对台面）
+  group.rotation.y = 0;
 
   scene.add(group);
   colliders.push({ x, z, radius: 0.75 });
@@ -638,8 +877,9 @@ function buildFortuneStand(scene, colliders, interactables) {
 /** 序厅里的斜面线索板，靠近后按 E 打开猜谜小游戏 */
 function buildDetectiveStand(scene, colliders, interactables) {
   const m = materials();
-  const x = -5.4;
-  const z = 13.6;
+  // 放在长廊入口西侧，与抽签台隔门对称
+  const x = -7.6;
+  const z = 18.7;
   const group = new THREE.Group();
   group.position.set(x, 0, z);
 
@@ -689,6 +929,8 @@ function buildDetectiveStand(scene, colliders, interactables) {
   panel.add(sign);
 
   group.add(panel);
+  // 默认朝 +z：不旋转即正面朝序厅内侧
+  group.rotation.y = 0;
   scene.add(group);
 
   colliders.push({ x, z, radius: 0.65 });
@@ -700,6 +942,79 @@ function buildDetectiveStand(scene, colliders, interactables) {
     desc: '一块线索板：翻开年代、材质、出土地等线索，推理并猜出对应的展品。',
     kind: 'quiz',
   });
+}
+
+
+/* ------------------------------------------------------------------ */
+/* 陈设：长凳、花器、序厅沙盘                                           */
+/* 这些不参与交互，只用来把大空间填满，避免「走进来什么都没有」。      */
+/* ------------------------------------------------------------------ */
+
+/** 楚式漆木长凳 */
+function buildBench(scene, colliders, x, z, rotationY = 0) {
+  const m = materials();
+  const group = new THREE.Group();
+  group.position.set(x, 0, z);
+  group.rotation.y = rotationY;
+
+  const seat = new THREE.Mesh(new THREE.BoxGeometry(2.4, 0.1, 0.46), m.lacquer);
+  seat.position.y = 0.46;
+  seat.castShadow = true;
+  seat.receiveShadow = true;
+  group.add(seat);
+  // 座面朱漆镶边
+  for (const dz of [-0.21, 0.21]) {
+    const edge = new THREE.Mesh(new THREE.BoxGeometry(2.44, 0.04, 0.05), m.red);
+    edge.position.set(0, 0.5, dz);
+    group.add(edge);
+  }
+  for (const dx of [-0.95, 0.95]) {
+    for (const dz of [-0.15, 0.15]) {
+      const leg = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.42, 0.09), m.black);
+      leg.position.set(dx, 0.21, dz);
+      leg.castShadow = true;
+      group.add(leg);
+    }
+  }
+  scene.add(group);
+  colliders.push({ x, z, radius: 1.3 });
+}
+
+/** 青铜花器（高圈足铜壶，内插绿枝） */
+function buildPlanter(scene, colliders, x, z) {
+  const m = materials();
+  const group = new THREE.Group();
+  group.position.set(x, 0, z);
+
+  // 注：lathe() 是 artifacts.js 的私有辅助函数，这里直接构造 LatheGeometry
+  const profile = [[0.02, 0], [0.26, 0], [0.3, 0.06], [0.42, 0.4], [0.44, 0.62], [0.36, 0.82], [0.34, 0.9]];
+  const body = new THREE.Mesh(
+    new THREE.LatheGeometry(profile.map(([r, y]) => new THREE.Vector2(r, y)), 48),
+    m.bronze,
+  );
+  body.material.side = THREE.DoubleSide;
+  body.castShadow = true;
+  group.add(body);
+  const collar = new THREE.Mesh(new THREE.TorusGeometry(0.35, 0.03, 10, 36), m.patina);
+  collar.rotation.x = Math.PI / 2;
+  collar.position.y = 0.9;
+  group.add(collar);
+
+  // 绿枝：几支细茎 + 球形叶团
+  const leaf = new THREE.MeshStandardMaterial({ color: 0x4a6b3c, roughness: 0.85 });
+  for (let i = 0; i < 7; i += 1) {
+    const a = (i / 7) * Math.PI * 2;
+    const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.02, 0.9, 6), leaf);
+    stem.position.set(Math.cos(a) * 0.12, 1.35, Math.sin(a) * 0.12);
+    stem.rotation.set(Math.sin(a) * 0.28, 0, -Math.cos(a) * 0.28);
+    group.add(stem);
+    const bush = new THREE.Mesh(new THREE.IcosahedronGeometry(0.2 + (i % 3) * 0.05, 0), leaf);
+    bush.position.set(Math.cos(a) * 0.3, 1.85 + (i % 2) * 0.14, Math.sin(a) * 0.3);
+    bush.castShadow = true;
+    group.add(bush);
+  }
+  scene.add(group);
+  colliders.push({ x, z, radius: 0.8 });
 }
 
 /* ================================================================== */
@@ -790,48 +1105,69 @@ function buildArtifact(artifact) {
 /* ================================================================== */
 
 function buildLights(scene) {
-  const { height, halfX, halfZ } = ROOM;
+  const { height } = ROOM;
 
   scene.add(new THREE.AmbientLight(0x55607a, 0.34));
   scene.add(new THREE.HemisphereLight(0xc6d8f2, 0x39312a, 0.42));
 
+  // 平行光模拟天窗日光。房间有 48 × 80 m，固定的阴影相机精度不够，
+  // 所以让光与目标点一起跟着玩家走（方向不变），阴影贴图始终对准玩家周围 ≈ 44 m 的范围。
   const sun = new THREE.DirectionalLight(0xfff4e0, 1.25);
-  sun.position.set(9, 26, 14);
+  const sunOffset = new THREE.Vector3(16, 44, 24);
+  sun.position.copy(sunOffset);
   sun.castShadow = true;
   sun.shadow.mapSize.set(2048, 2048);
-  sun.shadow.camera.left = -halfX - 3;
-  sun.shadow.camera.right = halfX + 3;
-  sun.shadow.camera.top = halfZ + 3;
-  sun.shadow.camera.bottom = -halfZ - 3;
+  const focus = 22;
+  sun.shadow.camera.left = -focus;
+  sun.shadow.camera.right = focus;
+  sun.shadow.camera.top = focus;
+  sun.shadow.camera.bottom = -focus;
   sun.shadow.camera.near = 1;
-  sun.shadow.camera.far = 80;
-  sun.shadow.bias = -0.0007;
+  sun.shadow.camera.far = 140;
+  sun.shadow.bias = -0.0006;
   scene.add(sun);
+  scene.add(sun.target);
+
+  // 每帧把阴影相机挪到玩家附近
+  const updateShadowFocus = (x, z) => {
+    sun.position.set(x + sunOffset.x, sunOffset.y, z + sunOffset.z);
+    sun.target.position.set(x, 0, z);
+    sun.target.updateMatrixWorld();
+  };
 
   const points = [
-    [0, 5.4, -6.5, 0xdff0ff, 26],
-    [0, 5.4, 6.5, 0xdff0ff, 26],
-    [9.5, 4.5, 6.5, 0xffeecf, 15],
-    [9.5, 4.5, -6.5, 0xffeecf, 15],
-    [-9.5, 4.5, 6.5, 0xffeecf, 15],
-    [-9.5, 4.5, -6.5, 0xffeecf, 15],
-    [0, 7.5, 20, 0xffeecf, 22],
-    [0, 10.5, -20, 0xdff0ff, 40],
+    // 长廊
+    [0, 6.2, -11, 0xdff0ff, 70],
+    [0, 6.2, 11, 0xdff0ff, 70],
+    // 四个侧厅
+    [15, 5.2, 9, 0xffeecf, 55],
+    [15, 5.2, -9, 0xffeecf, 55],
+    [-15, 5.2, 9, 0xffeecf, 55],
+    [-15, 5.2, -9, 0xffeecf, 55],
+    // 序厅
+    [-13, 7.6, 29, 0xffeecf, 70],
+    [13, 7.6, 29, 0xffeecf, 70],
+    // 编钟厅
+    [-14, 11, -29, 0xdff0ff, 110],
+    [14, 11, -29, 0xdff0ff, 110],
   ];
   for (const [x, y, z, color, intensity] of points) {
-    const lamp = new THREE.PointLight(color, intensity, 26, 2);
+    const lamp = new THREE.PointLight(color, intensity, 42, 2);
     lamp.position.set(x, y, z);
     scene.add(lamp);
   }
 
-  const spot = new THREE.SpotLight(0xfff3e0, 110, 20, 0.62, 0.5, 2);
-  spot.position.set(0, height - 1.5, -20);
+  // 编钟的重点照明
+  const spot = new THREE.SpotLight(0xfff3e0, 260, 34, 0.6, 0.5, 2);
+  spot.position.set(0, height - 2, -29);
   spot.castShadow = true;
   spot.shadow.mapSize.set(1024, 1024);
   spot.shadow.bias = -0.0008;
   scene.add(spot);
-  spot.target.position.set(0, 1.4, -20);
+  spot.target.position.set(0, 1.8, -29);
   scene.add(spot.target);
+
+  return { updateShadowFocus };
 }
 
 /* ================================================================== */
@@ -853,7 +1189,7 @@ export const LAYOUT = {
     [-CORRIDOR_HALF, -Z_LINE, CORRIDOR_HALF, -Z_LINE],
   ],
   // 编钟曲尺形的两条臂（画在图上）
-  bells: [-3.475, 1.02, 3.475, 1.74, -3.485, -1.72, -2.765, 1.38],
+  bells: [-4.99, -27.54, 4.99, -26.56, -4.99, -31.45, -4.05, -27.05],
 };
 
 /* ================================================================== */
@@ -869,19 +1205,32 @@ export function createMuseum(scene) {
   buildPartitions(scene, colliders);
   buildScrolls(scene, interactables);
   buildFortuneStand(scene, colliders, interactables);
+
+  // 序厅：两侧长凳与花器
+  buildBench(scene, colliders, -15, 22, 0);
+  buildBench(scene, colliders, 15, 22, 0);
+  buildBench(scene, colliders, -15, 36, 0);
+  buildBench(scene, colliders, 15, 36, 0);
+  // 花器给「展厅平面图」两侧的新展品让位（原来在 ±7.5，和展台只差 2.9 m）
+  buildPlanter(scene, colliders, -11.5, 38.6);
+  buildPlanter(scene, colliders, 11.5, 38.6);
+  // 四条展廊只放展品，不放长凳与花器。
+  // 那些陈设既挤压展品，又把展厅中央切碎——陈设只留在序厅与编钟厅。
+  // 编钟厅：长凳贴两侧墙，不挡中轴与编钟
+  for (const bx of [-17, 17]) buildBench(scene, colliders, bx, -22, 0);
   buildDetectiveStand(scene, colliders, interactables);
-  buildLights(scene);
+  const lighting = buildLights(scene);
 
   // 编钟厅：曾侯乙编钟
   const bells = buildChimeBells();
-  bells.group.position.set(0, 0, SPAWN[1] - 42.5);
+  bells.group.position.set(0, 0, -29);
   scene.add(bells.group);
   for (const collider of bells.colliders) {
     colliders.push({ ...collider, x: collider.x + bells.group.position.x, z: collider.z + bells.group.position.z });
   }
   interactables.push({
-    position: new THREE.Vector3(0, 1.6, -20),
-    radius: 4.4,
+    position: new THREE.Vector3(0, 2.0, -29),
+    radius: 6.2,
     title: '曾侯乙编钟',
     tag: '编钟厅 · 镇馆之宝',
     desc: '三层八组、六十五件青铜钟悬挂在曲尺形的钟架上，总重两千五百余公斤。钟体与钟枚上共有三千七百余字铭文，记述了曾、楚、齐等国的乐律。一钟双音，音域跨五个半八度，出土后仍能演奏。',
@@ -902,6 +1251,7 @@ export function createMuseum(scene) {
     colliders,
     interactables,
     spawn: new THREE.Vector3(SPAWN[0], 0, SPAWN[1]),
+    updateShadowFocus: lighting.updateShadowFocus,
     update(dt, elapsed) {
       for (const item of animated) {
         item.holder.rotation.y += item.spin * dt;

@@ -1402,7 +1402,6 @@ kbd {
   z-index: 3;
   border: 1px solid #43302a;
   border-radius: 12px;
-  background: rgba(10, 12, 18, 0.78);
   box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5);
   pointer-events: none;
 }
@@ -1462,4 +1461,14 @@ kbd {
 .hidden {
   opacity: 0;
   visibility: hidden;
+}
+
+/* 设置面板里的开关：开启态 */
+.check-toggle[aria-checked='true'] {
+  border-color: #6b4a2c;
+  background: rgba(60, 40, 26, 0.9);
+}
+
+.check-toggle[aria-checked='true'] .check-state {
+  color: #e8c96a;
 }
