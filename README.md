@@ -32,6 +32,73 @@
 - **编钟厅**通高 12 m，顶部方形天窗，正中是曲尺形三层钟架（长臂 6.6 × 短臂 3.1 × 高 3.3，悬挂 52 件合瓦形钟）。
 - **楚风配色**：漆器红黑、青铜锈绿、金饰、孔雀蓝琉璃。
 
+## 人物模型
+
+漫游人物使用 `Human.fbx`（放在项目根目录，可在 `src/player.js` 顶部的 `CHARACTER_URL` 修改，
+传 `null` 则退回程序化的方块小人）。
+
+### 为什么这份 FBX 直接丢给 FBXLoader 会"跑不了"
+
+它不是加载失败，而是**贴图被静默丢弃**。这份文件是 Maya 的 PBR 材质，通道名是
+`Maya|baseColor` / `Maya|normalCamera` / `Maya|specularRoughness` / `Maya|metalness`，
+而 three.js 的 `FBXLoader.parseMaterial()` 只认 `DiffuseColor`、`NormalMap`、
+`Maya|TEX_color_map` 这一类老名字，其余的走 `default:` 分支：
+
+```
+THREE.FBXLoader: Maya|baseColor map is not supported in three.js, skipping texture.
+THREE.FBXLoader: unknown material type "unknown". Defaulting to MeshPhongMaterial.
+```
+
+结果是模型只剩灰白 Phong 材质——看起来"精度低、没美感"，其实几何有 10.8 万顶点。
+
+### `src/character.js` 怎么解决
+
+不依赖 FBXLoader 的贴图解析，自己接管：
+
+1. **抠图**：FBX 把内嵌媒体以原始文件字节放在 `Video` 节点的 `Content` 里，没有加壳。
+   按 PNG/JPEG 文件签名扫描定位，用紧邻其前的 `RelativeFilename` 判断归属，
+   拿到全部 16 张 2048² 贴图。
+2. **认通道**：`Zhenxiliang_Skin_BaseColor.png` 这样的命名 → 材质 `Skin` + 通道 `BaseColor`，
+   映射到 three.js 的 `map` / `normalMap` / `metalnessMap` / `roughnessMap`，
+   并按通道设置颜色空间（颜色贴图 sRGB，数据贴图线性）。
+3. **重建材质**：换成 `MeshStandardMaterial`，有贴图时 `metalness/roughness` 取 1 让贴图原样生效
+   （那份金属度贴图全黑，所以金属度实际为 0，符合皮肤与布料）。
+4. **降采样**：原图 16 × 2048² 全尺寸上传要占几百 MB 显存，人物在屏幕上只有两三百像素高，
+   按颜色/法线 1024、金属/粗糙 512 降采样（`CHARACTER_CONFIG.textureSize` 可调）。
+
+### T 形姿势 → 双臂下垂
+
+模型是 T 形姿势（实测手臂顶点全部集中在身高 74% 处的窄带里，半宽 13.8 ≈ 身高的一半）。
+没有蒙皮权重做不了骨骼姿势，但手臂顶点集中在同一个高度带，可以按
+**绕肩关节在 XY 平面内旋转**把它们整体放下来：`reposeArms()` 在加载时对顶点做一次性处理，
+运行时不花钱；位置与法线用同一个旋转，肩部用 smoothstep 过渡带避免撕裂。
+
+效果可量化：归一化后包围盒宽度从 T 形的 1.65 m 收窄到 **0.8 m**，身高 1.78 m。
+参数在 `CHARACTER_CONFIG`（`armDropRadians` / `shoulderRatio` / `shoulderBlendRatio`），
+`reposeArms: false` 可关闭。
+
+### ⚠️ 关于走跑跳动画
+
+**这份 FBX 没有骨骼，也没有动画曲线**（`Deformer` / `Cluster` / `BindPose` / `AnimationCurve` 节点数全为 0，
+实测 `skinnedMeshes: 0`、`clips: []`），是静态网格，因此**无法播放真正的走路动画**。
+
+`player.js` 里的处理是分两支：
+
+| 情况 | 行为 |
+| --- | --- |
+| FBX 带骨骼与动画片段 | 用 `AnimationMixer` 播放，按 `idle` / `walk` / `run` / `jump` 关键字匹配片段名（支持中英文），按速度切换并交叉淡入淡出，步频跟移动速度对齐 |
+| 这份静态 FBX | 降级为**程序化整体律动**：随步频的上下起伏、前倾、侧摆，起跳时有压缩拉伸 |
+
+想要真正的走跑跳，把**带骨骼动画的 FBX**（在 Maya/Blender 里绑定骨骼并导出 idle/walk/run/jump 四个片段）
+换到同一路径即可，命名匹配规则见 `CHARACTER_CONFIG.clipPatterns`，不需要改代码。
+
+### 自查工具
+
+```bash
+npm run web
+node thesis/check_character.mjs   # 报告贴图挂载、身高朝向、包围盒、动效状态
+```
+
 ## 运行方式
 
 ### 1. 浏览器（推荐先用这个）
@@ -113,6 +180,7 @@ styles.css         HUD、设置面板、观察层的样式
 src/main.js        渲染器、主循环、交互流程（E / O / Esc）、音乐与设置接线
 src/museum.js      建筑：平面分区、隔墙、吊顶与天窗、书画、展板、展台、灯光、导览图数据
 src/artifacts.js   展品：材质、25 种器物造型、展品清单、曾侯乙编钟
+src/character.js   人物模型：内嵌贴图提取、PBR 材质重建、T 形姿势重姿态、朝向探测
 src/textures.js    全部程序化贴图（地面/藻井/漆器/青铜/青花/彩陶/书画/展板/匾额）
 src/inspector.js   观察模式：独立透明画布 + 独立光照，拖动旋转、滚轮缩放
 src/audio.js       背景音乐合成与音量控制

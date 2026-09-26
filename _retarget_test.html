@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <title>重定向验证</title>
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "./node_modules/three/build/three.module.js",
+          "three/addons/": "./node_modules/three/examples/jsm/"
+        }
+      }
+    </script>
+  </head>
+  <body>
+    <script type="module">
+      import * as THREE from 'three';
+      import {
+        buildBoneMap,
+        captureRestPose,
+        retargetClip,
+        clipCompatibility,
+        listBoneNames,
+        semanticKey,
+      } from './src/retarget.js';
+
+      const deg = (d) => (d * Math.PI) / 180;
+
+      /** 造一条骨架：bones = [名字, 相对父级位置, 静止旋转] */
+      function makeRig(name, bones) {
+        const root = new THREE.Object3D();
+        root.name = name;
+        let parent = root;
+        const created = [];
+        for (const [boneName, pos, rot] of bones) {
+          const bone = new THREE.Bone();
+          bone.name = boneName;
+          bone.position.set(...pos);
+          if (rot) bone.rotation.set(rot[0], rot[1], rot[2]);
+          parent.add(bone);
+          created.push(bone);
+          parent = bone;
+        }
+        root.updateMatrixWorld(true);
+        return { root, bones: created };
+      }
+
+      /** 造一段动画：让若干骨骼绕某轴摆动 */
+      function makeClip(trackSpecs, duration = 1) {
+        const times = [0, duration / 2, duration];
+        const tracks = trackSpecs.map(({ bone, axis, amplitude, position }) => {
+          if (position) {
+            const values = [];
+            for (const t of times) {
+              values.push(position[0], position[1] + Math.sin((t / duration) * Math.PI * 2) * amplitude, position[2]);
+            }
+            return new THREE.VectorKeyframeTrack(`${bone}.position`, times, values);
+          }
+          const values = [];
+          for (const t of times) {
+            const q = new THREE.Quaternion().setFromAxisAngle(
+              axis,
+              Math.sin((t / duration) * Math.PI * 2) * amplitude,
+            );
+            values.push(q.x, q.y, q.z, q.w);
+          }
+          return new THREE.QuaternionKeyframeTrack(`${bone}.quaternion`, times, values);
+        });
+        return new THREE.AnimationClip('test', duration, tracks);
+      }
+
+      const out = {};
+
+      /* ------------------------------------------------------------ */
+      /* 1. 源骨架：自定命名，手臂沿 +X 水平伸展（近似 T-pose）        */
+      /* ------------------------------------------------------------ */
+      const source = makeRig('SourceRig', [
+        ['Hips', [0, 0, 0], null],
+        ['Spine', [0, 40, 0], null],
+        ['LeftShoulder', [8, 22, 0], null],
+        ['LeftArm', [6, 0, 0], [0, 0, deg(90)]], // 静止时手臂朝 +X
+        ['LeftForeArm', [34, 0, 0], [0, 0, deg(-20)]],
+        ['LeftHand', [30, 0, 0], null],
+      ]);
+
+      const sourceClip = makeClip([
+        { bone: 'LeftArm', axis: new THREE.Vector3(0, 1, 0), amplitude: deg(70) },
+        { bone: 'LeftForeArm', axis: new THREE.Vector3(0, 1, 0), amplitude: deg(45) },
+        { bone: 'Hips', axis: null, amplitude: 9, position: [0, 0, 0] },
+      ]);
+
+      /* ------------------------------------------------------------ */
+      /* 2. 目标骨架：Mixamo 风格命名 + 不同绑定姿势 + 不同骨长        */
+      /* ------------------------------------------------------------ */
+      const target = makeRig('TargetRig', [
+        ['mixamorig:Hips', [0, 0, 0], null],
+        ['mixamorig:Spine', [0, 55, 0], null],          // 骨长不同：40 → 55
+        ['Bone_L_Clavicle', [10, 30, 0], null],
+        ['Bone_L_UpperArm', [8, 0, 0], [0, 0, deg(-35)]], // 静止姿势不同：A-pose
+        ['Bone_L_ForeArm', [48, 0, 0], [0, 0, deg(15)]],  // 骨长不同：34 → 48
+        ['Bone_L_Hand', [26, 0, 0], null],
+      ]);
+
+      out.语义匹配自检 = [
+        'LeftArm', 'LeftForeArm', 'mixamorig:Hips', 'Bone_L_UpperArm', 'Bone_L_ForeArm', 'RightHand',
+      ].map((n) => `${n} → ${semanticKey(n).semantic}/${semanticKey(n).side || '-'}`);
+
+      /* ------------------------------------------------------------ */
+      /* 3. 建映射 + 判断是否需要重定向                                */
+      /* ------------------------------------------------------------ */
+      const { map, report } = buildBoneMap(source.root, target.root);
+      out.匹配报告 = report;
+      out.源骨骼 = listBoneNames(source.root);
+      out.目标骨骼 = listBoneNames(target.root);
+
+      const compat = clipCompatibility(sourceClip, target.root);
+      out.直接播放兼容度 = `${compat.resolved}/${compat.total} = ${(compat.ratio * 100).toFixed(0)}%`;
+
+      /* ------------------------------------------------------------ */
+      /* 4. 重定向                                                      */
+      /* ------------------------------------------------------------ */
+      const sourceRest = captureRestPose(source.root);
+      const targetRest = captureRestPose(target.root);
+      const heightScale = 1.0;
+
+      const t0 = performance.now();
+      const retargeted = retargetClip(sourceClip, source.root, target.root, map, {
+        fps: 40,
+        sourceRest,
+        targetRest,
+        heightScale,
+        rootMotion: 'vertical',
+      });
+      out.重定向耗时 = Math.round(performance.now() - t0) + ' ms';
+      out.生成轨道数 = retargeted.tracks.length;
+      out.生成轨道名 = retargeted.tracks.map((t) => t.name).join(', ');
+
+      /* ------------------------------------------------------------ */
+      /* 5. 验证不变式：qs(t)·qs(0)⁻¹ 是否等于 qt(t)·qt(0)⁻¹             */
+      /* ------------------------------------------------------------ */
+      const srcMixer = new THREE.AnimationMixer(source.root);
+      const dstMixer = new THREE.AnimationMixer(target.root);
+      srcMixer.clipAction(sourceClip).play();
+      dstMixer.clipAction(retargeted).play();
+
+      const pairs = [...map.entries()];
+      const restSource = new Map();
+      const restTarget = new Map();
+      for (const [s, t] of pairs) {
+        restSource.set(s, sourceRest.quaternions.get(s).clone());
+        restTarget.set(t, targetRest.quaternions.get(t).clone());
+      }
+
+      const samples = 9;
+      const errors = [];
+      let maxAngle = 0;
+      let worstBone = '';
+      const endEffector = [];
+
+      const sWorld = new THREE.Vector3();
+      const tWorld = new THREE.Vector3();
+
+      for (let i = 0; i < samples; i += 1) {
+        const time = (sourceClip.duration * i) / (samples - 1);
+        srcMixer.setTime(time);
+        dstMixer.setTime(time);
+        source.root.updateMatrixWorld(true);
+        target.root.updateMatrixWorld(true);
+
+        let frameMax = 0;
+        for (const [s, t] of pairs) {
+          const qs = s.getWorldQuaternion(new THREE.Quaternion());
+          const qt = t.getWorldQuaternion(new THREE.Quaternion());
+          const ds = qs.multiply(restSource.get(s).clone().invert());   // 源增量
+          const dt = qt.multiply(restTarget.get(t).clone().invert());   // 目标增量
+          const angle = ds.angleTo(dt);
+          frameMax = Math.max(frameMax, angle);
+          if (angle > maxAngle) {
+            maxAngle = angle;
+            worstBone = `${s.name} → ${t.name}`;
+          }
+        }
+        errors.push(+frameMax.toFixed(6));
+
+        const lastSource = pairs[pairs.length - 1][0];
+        const lastTarget = pairs[pairs.length - 1][1];
+        lastSource.getWorldPosition(sWorld);
+        lastTarget.getWorldPosition(tWorld);
+        endEffector.push({
+          t: +time.toFixed(2),
+          源末端: sWorld.toArray().map((v) => +v.toFixed(1)),
+          目标末端: tWorld.toArray().map((v) => +v.toFixed(1)),
+        });
+      }
+
+      out.旋转增量最大误差_弧度 = +maxAngle.toFixed(8);
+      out.旋转增量最大误差_度 = +((maxAngle * 180) / Math.PI).toFixed(6);
+      out.最差骨骼 = worstBone;
+      out.逐帧最大误差 = errors;
+      out.末端位置对照 = endEffector;
+
+      /* ------------------------------------------------------------ */
+      /* 6. 对照：不做重定向、直接播源片段会怎样                        */
+      /* ------------------------------------------------------------ */
+      const naiveMixer = new THREE.AnimationMixer(target.root);
+      const naive = naiveMixer.clipAction(sourceClip);
+      let naivePlayed = false;
+      try {
+        naive.play();
+        naiveMixer.setTime(0.5);
+        naivePlayed = true;
+      } catch (e) {
+        naivePlayed = '播放报错：' + e.message;
+      }
+      out.不重定向直接播 = naivePlayed === true
+        ? '能创建 action，但轨道名对不上骨骼，骨头不会动（下面验证）'
+        : naivePlayed;
+
+      // 验证「不重定向 = 骨头不动」
+      const before = target.bones.map((b) => b.quaternion.clone());
+      naiveMixer.setTime(0.25);
+      target.root.updateMatrixWorld(true);
+      let moved = 0;
+      target.bones.forEach((b, i) => {
+        if (before[i].angleTo(b.quaternion) > 1e-6) moved += 1;
+      });
+      out.不重定向时目标骨骼变动数 = moved + ' / ' + target.bones.length;
+
+      console.info('RETARGET_RESULT ' + JSON.stringify(out));
+    </script>
+  </body>
+</html>

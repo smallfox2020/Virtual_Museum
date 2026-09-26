@@ -20,7 +20,7 @@ const OUT = path.join(ROOT, 'release', DIST_NAME);
 const ELECTRON_DIST = path.join(ROOT, 'node_modules', 'electron', 'dist');
 
 /** 要打进包里的应用文件（相对项目根目录） */
-const APP_FILES = ['main.js', 'index.html', 'styles.css', 'package.json', 'src', 'assets'];
+const APP_FILES = ['main.js', 'index.html', 'styles.css', 'package.json', 'src', 'assets', 'Human.fbx'];
 /** three.js 只需要运行时用到的那几个子目录 */
 const THREE_PARTS = ['build', 'examples/jsm', 'package.json', 'LICENSE'];
 

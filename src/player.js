@@ -1,4 +1,14 @@
 import * as THREE from 'three';
+import { loadCharacter, pickClips, CHARACTER_CONFIG } from './character.js';
+
+/**
+ * 外部角色模型（相对 index.html）。
+ * 这是一个带内嵌 PBR 贴图的 FBX：几何与贴图都会被加载，
+ * 但它本身没有骨骼与动画曲线，走跑跳由程序化整体律动代替；
+ * 若换成带骨骼动画的 FBX，会自动改用 AnimationMixer 播放其中匹配的片段。
+ * 传 null 则一直用程序化人物。
+ */
+const CHARACTER_URL = './Human.fbx';
 
 const EYE_HEIGHT = 1.5;
 // 第一人称的镜头高度，对齐头部球体（y=1.72）的眼位
@@ -25,6 +35,16 @@ const COLORS = {
 
 function makeLimb(material, radius, length) {
   return new THREE.Mesh(new THREE.CapsuleGeometry(radius, length - radius * 2, 6, 12), material);
+}
+
+/** 释放被替换掉的程序化人物，避免几何与材质泄漏 */
+function disposeObject(root) {
+  root.traverse((node) => {
+    if (!node.isMesh) return;
+    node.geometry?.dispose?.();
+    const materials = Array.isArray(node.material) ? node.material : [node.material];
+    for (const material of materials) material?.dispose?.();
+  });
 }
 
 /** 用基础几何体拼出一个可动画的人形，返回模型与各关节 */
@@ -109,7 +129,7 @@ function buildCharacter() {
 }
 
 export class Player {
-  constructor({ scene, room, colliders, spawn }) {
+  constructor({ scene, room, colliders, spawn, characterUrl = CHARACTER_URL }) {
     this.room = room;
     this.colliders = colliders;
     this.radius = 0.42;
@@ -131,10 +151,21 @@ export class Player {
 
     const character = buildCharacter();
     this.character = character;
+
+    // 层级：root（世界坐标） → tilt（程序化律动：起伏/前倾/侧摆） → model（rotation.y = 朝向）
+    // 分成两层，是为了让「朝向」和「律动」互不干扰，两种模型都能复用。
+    this.tilt = new THREE.Group();
+    this.tilt.add(character.model);
+    this.character.tilt = this.tilt;
+    this.character.external = null;
+
     this.root = new THREE.Group();
-    this.root.add(character.model);
+    this.root.add(this.tilt);
     this.root.position.copy(this.position);
     scene.add(this.root);
+
+    this.characterUrl = characterUrl;
+    if (characterUrl) this.loadExternalCharacter(characterUrl);
 
     this.cameraPosition = new THREE.Vector3();
     this.cameraTarget = new THREE.Vector3();
@@ -215,10 +246,79 @@ export class Player {
   setModelHidden(hidden) {
     if (this.modelHidden === hidden) return;
     this.modelHidden = hidden;
+    this.applyModelVisibility();
+  }
 
+  /** 把当前的显示状态刷到所有材质上（材质可能是数组，需要展开） */
+  applyModelVisibility() {
+    const hidden = this.modelHidden;
+    const seen = new Set();
     for (const mesh of this.character.meshes) {
-      mesh.material.colorWrite = !hidden;
-      mesh.material.depthWrite = !hidden;
+      const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+      for (const material of materials) {
+        if (!material || seen.has(material)) continue;
+        seen.add(material);
+        material.colorWrite = !hidden;
+        material.depthWrite = !hidden;
+      }
+    }
+  }
+
+  /**
+   * 异步换上外部 FBX 角色。
+   * 加载期间保持程序化人物可见，成功后无缝替换；失败则继续用程序化人物，不影响漫游。
+   */
+  async loadExternalCharacter(url) {
+    try {
+      const { object, clips, stats } = await loadCharacter(url);
+      if (this.disposed) return;
+
+      const previous = this.character.model;
+      this.tilt.remove(previous);
+      disposeObject(previous);
+
+      this.tilt.add(object);
+
+      const meshes = [];
+      object.traverse((node) => {
+        if (node.isMesh) meshes.push(node);
+      });
+
+      const mixer = clips.length ? new THREE.AnimationMixer(object) : null;
+      const actions = {};
+      if (mixer) {
+        const picked = pickClips(clips);
+        for (const [slot, clip] of Object.entries(picked)) {
+          const action = mixer.clipAction(clip);
+          if (slot === 'jump') {
+            action.setLoop(THREE.LoopOnce, 1);
+            action.clampWhenFinished = true;
+          }
+          actions[slot] = action;
+        }
+      }
+
+      this.character.model = object;
+      this.character.meshes = meshes;
+      this.character.hips = [];
+      this.character.shoulders = [];
+      this.character.external = {
+        object,
+        mixer,
+        actions,
+        current: null,
+        slot: null,
+        hasClips: clips.length > 0,
+        stats,
+        facingOffset: CHARACTER_CONFIG.facingOffset,
+      };
+
+      // 第一人称下换模型时要重新应用隐藏
+      this.applyModelVisibility();
+      return this.character.external;
+    } catch (error) {
+      console.warn('[player] 外部角色加载失败，继续使用程序化人物：', error);
+      return null;
     }
   }
 
@@ -287,14 +387,36 @@ export class Player {
     while (diff < -Math.PI) diff += Math.PI * 2;
     this.facing += diff * (1 - Math.exp(-12 * dt));
 
-    this.character.model.rotation.y = this.facing;
+    // 外部模型可能自带朝向偏移（面朝 -Z 的模型需要加 π）
+    const offset = this.character.external?.facingOffset ?? 0;
+    this.character.model.rotation.y = this.facing + offset;
   }
 
   animate(dt) {
-    const { hips, shoulders, model } = this.character;
+    const { hips, shoulders, tilt, external } = this.character;
     const amplitude = Math.min(this.speed / WALK_SPEED, 1.4);
     this.walkPhase += dt * (4 + this.speed * 1.9);
 
+    // ① 有骨骼动画：交给 AnimationMixer
+    if (external && external.hasClips) {
+      this.updateSkeletalAnimation(dt, amplitude);
+      return;
+    }
+
+    // ② 外部模型但没有骨骼动画：整体律动（该模型的客观限制，见 README）
+    if (external) {
+      const step = Math.sin(this.walkPhase);
+      const moving = THREE.MathUtils.clamp(this.speed / WALK_SPEED, 0, 1.4);
+      tilt.position.y = this.onGround ? Math.abs(step) * 0.055 * moving : 0;
+      tilt.rotation.x = -0.07 * moving + step * 0.012 * moving;
+      tilt.rotation.z = step * 0.022 * moving;
+      // 起跳/落地时给一点压缩拉伸
+      const stretch = this.onGround ? 1 : THREE.MathUtils.clamp(1 + this.verticalVelocity * 0.006, 0.96, 1.06);
+      tilt.scale.set(1, stretch, 1);
+      return;
+    }
+
+    // ③ 程序化人物：原来的关节动画
     const swing = Math.sin(this.walkPhase) * 0.55 * amplitude;
     hips[0].rotation.x = swing;
     hips[1].rotation.x = -swing;
@@ -304,7 +426,44 @@ export class Player {
 
     // 走动时轻微起伏
     const bob = Math.abs(Math.sin(this.walkPhase)) * 0.045 * amplitude;
-    model.position.y = this.onGround ? bob : 0.02;
+    tilt.position.y = this.onGround ? bob : 0.02;
+  }
+
+  /** 走 / 跑 / 跳 / 待机 四态，按速度与是否着地切换，切换时交叉淡入淡出 */
+  updateSkeletalAnimation(dt, amplitude) {
+    const external = this.character.external;
+    const { actions, mixer } = external;
+
+    let slot = 'idle';
+    if (!this.onGround) slot = 'jump';
+    else if (this.speed > WALK_SPEED * 1.08) slot = 'run';
+    else if (this.speed > 0.25) slot = 'walk';
+
+    // 缺哪个片段就退到已有的那个
+    if (!actions[slot]) slot = actions[slot === 'jump' ? 'walk' : 'idle'] ? (slot === 'jump' ? 'walk' : 'idle') : Object.keys(actions)[0];
+    const next = actions[slot];
+
+    if (next && external.slot !== slot) {
+      if (external.current) external.current.fadeOut(0.18);
+      next.reset().setEffectiveWeight(1).fadeIn(0.18).play();
+      external.current = next;
+      external.slot = slot;
+    }
+
+    // 步频跟速度对齐，避免脚底打滑
+    if (actions.walk && slot === 'walk') {
+      actions.walk.timeScale = THREE.MathUtils.clamp(this.speed / WALK_SPEED, 0.55, 1.7);
+    }
+    if (actions.run && slot === 'run') {
+      actions.run.timeScale = THREE.MathUtils.clamp(this.speed / RUN_SPEED, 0.6, 1.5);
+    }
+
+    // 没有位移的片段也需要一点整体起伏，否则看起来像在地上滑
+    const step = Math.sin(this.walkPhase);
+    this.character.tilt.rotation.x = -0.05 * amplitude;
+    this.character.tilt.rotation.z = step * 0.015 * amplitude;
+
+    if (mixer) mixer.update(dt);
   }
 
   updateCamera(dt, camera) {
