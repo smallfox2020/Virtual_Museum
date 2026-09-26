@@ -199,6 +199,53 @@ export function makeStoneFloorCanvas() {
 }
 
 /** 青铜器纹样变体：0 云雷纹 / 1 兽面纹 / 2 蟠螭纹 / 3 素面带锈 */
+/**
+ * 柱身贴图：竖向凹槽（fluting）+ 颗粒 / 木纹。
+ *
+ * 柱子最怕「一根光溜溜的圆柱」，低模也救不回来。
+ * 沿圆周方向排一组凹槽，用「暗—亮—暗」的横向渐变把棱和槽画出来，
+ * 再叠颗粒或木纹，远看就有石柱、木柱的质感。
+ * 贴图本身是中性色，色相交给材质的 color 决定，一张图能复用到多种柱子。
+ */
+export function makeColumnCanvas(kind = 'stone') {
+  const size = 256;
+  const { canvas, ctx } = makeCanvas(size, size);
+  const flutes = kind === 'wood' ? 0 : 8;
+  ctx.fillStyle = kind === 'wood' ? '#b9a58c' : kind === 'lattice' ? '#8d8577' : '#cfc8ba';
+  ctx.fillRect(0, 0, size, size);
+
+  for (let i = 0; i < flutes; i += 1) {
+    const w = size / flutes;
+    const g = ctx.createLinearGradient(i * w, 0, i * w + w, 0);
+    g.addColorStop(0, 'rgba(0,0,0,0.34)');
+    g.addColorStop(0.22, 'rgba(255,255,255,0.30)');
+    g.addColorStop(0.5, 'rgba(0,0,0,0.10)');
+    g.addColorStop(0.78, 'rgba(255,255,255,0.22)');
+    g.addColorStop(1, 'rgba(0,0,0,0.34)');
+    ctx.fillStyle = g;
+    ctx.fillRect(i * w, 0, w, size);
+  }
+
+  if (kind === 'wood') {
+    for (let i = 0; i < 90; i += 1) {
+      const x = Math.random() * size;
+      ctx.strokeStyle = Math.random() > 0.5 ? 'rgba(0,0,0,0.16)' : 'rgba(255,255,255,0.10)';
+      ctx.lineWidth = 0.6 + Math.random() * 1.6;
+      ctx.beginPath();
+      ctx.moveTo(x, 0);
+      ctx.bezierCurveTo(x + (Math.random() - 0.5) * 12, size / 3, x + (Math.random() - 0.5) * 12, (size * 2) / 3, x + (Math.random() - 0.5) * 8, size);
+      ctx.stroke();
+    }
+  }
+
+  for (let i = 0; i < 2400; i += 1) {
+    const a = Math.random() * 0.13;
+    ctx.fillStyle = Math.random() > 0.5 ? 'rgba(255,255,255,' + a + ')' : 'rgba(0,0,0,' + a + ')';
+    ctx.fillRect(Math.random() * size, Math.random() * size, 1.4, 1.4);
+  }
+  return canvas;
+}
+
 export function makeBronzeCanvas(variant = 0) {
   const w = 1024;
   const h = 1024;
@@ -813,10 +860,33 @@ export function makeScrollTexture(kind, seed = 0) {
       }
     }
   } else if (kind === 'shufa') {
-    const lines = ['楚水清若空', '遥将碧海通', '山随平野尽', '江入大荒流'];
-    lines.forEach((line, i) => {
-      verticalText(ctx, line, 200 + i * 130, 250, 78, '#22222a');
+    // 这里原来是写死的一首四句诗，完全没用 seed ——
+    // 于是八件书法挂的是同一张字（像素级完全相同）。
+    // 现在按 seed 从诗库里挑一首，并连带变列数、墨色、字号、落款位置。
+    const poems = [
+      ['楚水清若空', '遥将碧海通', '山随平野尽', '江入大荒流'],
+      ['江流天地外', '山色有无中', '郡邑浮前浦', '波澜动远空'],
+      ['一钟双音在', '千年古乐存', '曾侯随水去', '编磬有余声'],
+      ['凤鸟鸣高冈', '鹿角立其旁', '楚人好巫祀', '漆画满棺床'],
+      ['汉水东南流', '云梦泽中舟', '渔歌相答处', '芦荻满汀洲'],
+      ['越王勾践剑', '埋土两千秋', '出鞘寒光在', '犹能断吴钩'],
+      ['简牍藏楚字', '墨迹八百年', '一撇还如昨', '观者不知言'],
+      ['苍璧礼天穹', '黄琮分地脉', '玉琮与玉璧', '礼器见王风'],
+    ];
+    const poem = poems[seed % poems.length];
+    const columns = 3 + (seed % 2);
+    const ink = ['#22222a', '#1a1f26', '#2b2118'][seed % 3];
+    const size = 70 + (seed % 4) * 8;
+    const startX = 180 + (seed % 3) * 24;
+    const startY = 210 + (seed % 2) * 46;
+    poem.slice(0, columns).forEach((line, i) => {
+      verticalText(ctx, line, startX + i * 132, startY, size, ink);
     });
+    // 落款与朱印：位置随 seed 变，进一步拉开各幅的差别
+    ctx.fillStyle = 'rgba(150, 32, 28, 0.88)';
+    ctx.fillRect(1020 - (seed % 4) * 34, 1090 + (seed % 3) * 42, 54, 54);
+    ctx.fillStyle = 'rgba(60, 60, 66, 0.75)';
+    ctx.fillRect(1030 - (seed % 4) * 34, 1010 + (seed % 3) * 42, 34, 70);
   } else {
     // 花鸟：梅枝与雀
     ctx.strokeStyle = 'rgba(72, 52, 40, 0.9)';
