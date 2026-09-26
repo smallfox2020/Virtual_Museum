@@ -529,6 +529,108 @@ function buildPanel(scene, config, interactables) {
   });
 }
 
+/* ------------------------------------------------------------------ */
+/* 序厅：摇签台                                                        */
+/* ------------------------------------------------------------------ */
+
+/** 序厅里的小木台，上面放着一只签筒，靠近后按 E 打开抽签小游戏 */
+function buildFortuneStand(scene, colliders, interactables) {
+  const m = materials();
+  const x = 5.4;
+  // 背靠序厅北面的隔墙（z = 13），桌子正面朝南
+  const z = 13.6;
+  const group = new THREE.Group();
+  group.position.set(x, 0, z);
+
+  const wood = new THREE.MeshStandardMaterial({ color: 0x6b4b32, roughness: 0.72 });
+  const darkWood = new THREE.MeshStandardMaterial({ color: 0x3a2a1e, roughness: 0.55 });
+  const ivory = new THREE.MeshStandardMaterial({ color: 0xe3d2a8, roughness: 0.62 });
+  const cinnabar = new THREE.MeshStandardMaterial({ color: 0x9c2b24, roughness: 0.55 });
+
+  const top = new THREE.Mesh(new THREE.BoxGeometry(1.3, 0.1, 0.86), darkWood);
+  top.position.y = 0.95;
+  top.castShadow = true;
+  top.receiveShadow = true;
+  group.add(top);
+
+  const apron = new THREE.Mesh(new THREE.BoxGeometry(1.16, 0.3, 0.72), wood);
+  apron.position.y = 0.78;
+  group.add(apron);
+
+  for (const [legX, legZ] of [
+    [-0.55, -0.32],
+    [0.55, -0.32],
+    [-0.55, 0.32],
+    [0.55, 0.32],
+  ]) {
+    const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.06, 0.66, 10), darkWood);
+    leg.position.set(legX, 0.34, legZ);
+    leg.castShadow = true;
+    group.add(leg);
+  }
+
+  // 签筒
+  const tube = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.2, 0.17, 0.56, 26, 1, true),
+    new THREE.MeshStandardMaterial({ color: 0x7d4f2c, roughness: 0.58, side: THREE.DoubleSide }),
+  );
+  tube.position.y = 1.3;
+  tube.castShadow = true;
+  group.add(tube);
+
+  const tubeBottom = new THREE.Mesh(new THREE.CylinderGeometry(0.17, 0.17, 0.05, 26), darkWood);
+  tubeBottom.position.y = 1.03;
+  group.add(tubeBottom);
+
+  for (const y of [1.08, 1.52]) {
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(0.2, 0.014, 8, 28), m.gold);
+    ring.rotation.x = Math.PI / 2;
+    ring.position.y = y;
+    group.add(ring);
+  }
+
+  // 露在筒口外的木签
+  for (let i = 0; i < 15; i += 1) {
+    const angle = (i / 15) * Math.PI * 2;
+    const radius = i % 2 ? 0.06 : 0.13;
+    const stick = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.72, 0.02), ivory);
+    stick.position.set(Math.cos(angle) * radius, 1.58, Math.sin(angle) * radius);
+    stick.rotation.set((Math.random() - 0.5) * 0.18, angle, (Math.random() - 0.5) * 0.18);
+    group.add(stick);
+
+    const tip = new THREE.Mesh(new THREE.BoxGeometry(0.022, 0.12, 0.022), cinnabar);
+    tip.position.set(stick.position.x, 1.9, stick.position.z);
+    tip.rotation.copy(stick.rotation);
+    group.add(tip);
+  }
+
+  // 台前的小木牌
+  const signTexture = tex.makeSignTexture('摇签问古', 'DIVINATION');
+  const signHeight = 0.72 * (signTexture.image.height / signTexture.image.width);
+  const sign = new THREE.Mesh(
+    new THREE.PlaneGeometry(0.72, signHeight),
+    new THREE.MeshStandardMaterial({
+      map: signTexture,
+      roughness: 0.6,
+      emissive: 0x241512,
+      emissiveIntensity: 0.4,
+    }),
+  );
+  sign.position.set(0, 0.78, 0.365);
+  group.add(sign);
+
+  scene.add(group);
+  colliders.push({ x, z, radius: 0.75 });
+  interactables.push({
+    position: new THREE.Vector3(x, 1.4, z),
+    radius: 2.7,
+    title: '灵签筒',
+    tag: '序厅 · 摇签问古',
+    desc: '案上立着一只漆木签筒，里面插着数十支灵签。摇一摇，抽一支，看看今日与哪件展品有缘。',
+    kind: 'fortune',
+  });
+}
+
 /* ================================================================== */
 /* 展台与展品                                                          */
 /* ================================================================== */
@@ -694,6 +796,7 @@ export function createMuseum(scene) {
   buildShell(scene);
   buildPartitions(scene, colliders);
   buildScrolls(scene, interactables);
+  buildFortuneStand(scene, colliders, interactables);
   buildLights(scene);
 
   // 编钟厅：曾侯乙编钟

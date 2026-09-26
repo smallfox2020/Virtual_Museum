@@ -66,6 +66,19 @@
           <input id="volume" type="range" min="0" max="100" step="1" value="45" />
           <output id="volume-value">45</output>
         </label>
+        <button
+          id="reader-toggle"
+          class="check-toggle"
+          type="button"
+          role="checkbox"
+          aria-checked="false"
+        >
+          <span class="check-box" aria-hidden="true">
+            <svg viewBox="0 0 24 24"><path d="M4.5 12.5l5 5 10-11" /></svg>
+          </span>
+          <span class="check-label">朗读器</span>
+          <span class="check-state" id="reader-state">未启用</span>
+        </button>
         <p class="setting-note">背景音乐由 WebAudio 实时合成（五声音阶拨弦 + 厅堂混响），不需要任何音频文件。</p>
       </section>
 
@@ -81,6 +94,8 @@
         <span><kbd>V</kbd> 第一/第三人称</span>
         <span><kbd>E</kbd> 查看展品</span>
         <span><kbd>O</kbd> 观察器物</span>
+        <span><kbd>L</kbd> 朗读</span>
+        <span>序厅可摇签问古</span>
         <span><kbd>Esc</kbd> 返回</span>
       </div>
 
@@ -99,7 +114,7 @@
         <div class="overlay-card">
           <h2>点击进入序厅</h2>
           <p>一条长廊贯穿南北：两侧是曾侯乙墓、楚文化、青铜器与陶瓷四个展厅，尽头是曾侯乙编钟</p>
-          <p class="overlay-sub">走近展品按 E 查看介绍 · 按 O 单独观察器物 · 按 V 切换第一 / 第三人称 · 右上角可开关音乐与调节音量</p>
+          <p class="overlay-sub">走近展品按 E 查看介绍 · 按 O 单独观察器物 · 序厅的摇签台可按 E 摇签问古 · 按 V 切换第一 / 第三人称 · 右上角可开关音乐与调节音量</p>
         </div>
       </div>
     </div>
@@ -113,6 +128,48 @@
       <div id="inspect-hint">
         拖动旋转 · 滚轮缩放 · <kbd>Esc</kbd> 返回介绍
       </div>
+    </div>
+
+    <!-- 序厅「摇签问古」抽签小游戏 -->
+    <div id="fortune" class="hidden">
+      <canvas id="fortune-canvas"></canvas>
+
+      <div id="fortune-head">
+        <span>序厅 · 摇签问古</span>
+        <h2>灵签筒</h2>
+      </div>
+
+      <div id="fortune-tip">先摇晃签筒，再从中抽出一支灵签</div>
+      <div id="fortune-actions">
+        <button id="fortune-shake" type="button">摇 晃 签 筒</button>
+      </div>
+
+      <div id="fortune-result" class="hidden">
+        <button class="fortune-slip" type="button" aria-label="查看展品故事">
+          <span id="fortune-fate">吉</span>
+          <span class="fortune-slip-art">
+            <img id="fortune-image" alt="签中所指展品" />
+          </span>
+          <span class="fortune-slip-caption">请点击查看展品故事</span>
+        </button>
+        <button id="fortune-again" type="button">再摇一次</button>
+        <p class="fortune-slip-hint">
+          <kbd>E</kbd> 查看展品故事 · <kbd>O</kbd> 观察器物 · <kbd>Esc</kbd> 退出抽签
+        </p>
+      </div>
+
+      <div id="fortune-story" class="hidden">
+        <div id="fortune-story-head">
+          <span id="fortune-story-tag"></span>
+          <h3 id="fortune-story-title"></h3>
+        </div>
+        <div id="fortune-story-body"></div>
+        <p class="fortune-story-hint">
+          <kbd>E</kbd> <span id="fortune-story-hint-text">跳过</span> · 滚轮翻阅 · <kbd>Esc</kbd> 退出抽签
+        </p>
+      </div>
+
+      <div id="fortune-footer">按 <kbd>Esc</kbd> 退出抽签，继续参观</div>
     </div>
 
     <script type="module" src="./src/main.js"></script>

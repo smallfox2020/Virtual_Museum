@@ -51,9 +51,13 @@ export function createHud() {
         prompt.classList.add('hidden');
         return;
       }
-      prompt.innerHTML = item.model
-        ? `按 <kbd>E</kbd> 查看《${item.title}》 · <kbd>O</kbd> 观察`
-        : `按 <kbd>E</kbd> 查看《${item.title}》`;
+      if (item.kind === 'fortune') {
+        prompt.innerHTML = `按 <kbd>E</kbd> 摇签问古`;
+      } else {
+        prompt.innerHTML = item.model
+          ? `按 <kbd>E</kbd> 查看《${item.title}》 · <kbd>O</kbd> 观察`
+          : `按 <kbd>E</kbd> 查看《${item.title}》`;
+      }
       prompt.classList.remove('hidden');
     },
 
@@ -72,6 +76,16 @@ export function createHud() {
       panel.classList.add('hidden');
       applyOverlay();
     },
+
+    /** 介绍面板里的文字，供朗读器使用 */
+    panelText() {
+      if (!panelOpen) return '';
+      return [panelTag.textContent, panelTitle.textContent, panelDesc.textContent]
+        .filter(Boolean)
+        .join('。');
+    },
+
+    showToast,
 
     setStats(text) {
       stats.textContent = text;

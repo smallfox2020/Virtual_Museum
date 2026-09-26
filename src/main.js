@@ -4,7 +4,10 @@ import { Input } from './input.js';
 import { Player } from './player.js';
 import { createHud } from './hud.js';
 import { createInspector } from './inspector.js';
+import { createFortune } from './fortune.js';
+import { createArtifactObject } from './artifacts.js';
 import { createAudio } from './audio.js';
+import { createReader } from './reader.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 
 const canvas = document.getElementById('scene');
@@ -33,7 +36,12 @@ const museum = createMuseum(scene);
 const input = new Input(canvas);
 const hud = createHud();
 const inspector = createInspector(document.getElementById('inspect-canvas'));
+const fortune = createFortune({
+  canvas: document.getElementById('fortune-canvas'),
+  onInspect: (artifact) => openArtifactInspector(artifact),
+});
 const audio = createAudio();
+const reader = createReader();
 
 const player = new Player({
   scene,
@@ -54,6 +62,8 @@ const settingsBtn = document.getElementById('settings-btn');
 const settingsPanel = document.getElementById('settings');
 const volumeInput = document.getElementById('volume');
 const volumeValue = document.getElementById('volume-value');
+const readerToggle = document.getElementById('reader-toggle');
+const readerState = document.getElementById('reader-state');
 
 audio.setVolume(Number(volumeInput.value) / 100);
 
@@ -73,6 +83,28 @@ volumeInput.addEventListener('input', () => {
   volumeValue.textContent = volumeInput.value;
 });
 
+/* ---------- 设置面板：朗读器开关 ---------- */
+
+function applyReaderUI() {
+  const on = reader.isEnabled();
+  readerToggle.setAttribute('aria-checked', on ? 'true' : 'false');
+  readerState.textContent = on ? '已启用' : '未启用';
+}
+
+if (!reader.supported) {
+  readerToggle.disabled = true;
+  readerState.textContent = '不可用';
+}
+applyReaderUI();
+
+readerToggle.addEventListener('click', (event) => {
+  event.stopPropagation();
+  if (!reader.supported) return;
+  reader.toggle();
+  applyReaderUI();
+  hud.showToast(reader.isEnabled() ? '朗读器已启用 · 在界面内按 L 朗读' : '朗读器已关闭');
+});
+
 document.addEventListener('mousedown', (event) => {
   if (settingsPanel.classList.contains('hidden')) return;
   if (settingsPanel.contains(event.target) || settingsBtn.contains(event.target)) return;
@@ -84,6 +116,7 @@ document.addEventListener('mousedown', (event) => {
 const inspectOverlay = document.getElementById('inspect');
 const inspectTag = document.getElementById('inspect-tag');
 const inspectTitle = document.getElementById('inspect-title');
+const hudRoot = document.getElementById('hud');
 
 let activeItem = null; // 附近可交互的展品
 let panelItem = null; // 面板里正在介绍的展品
@@ -97,14 +130,33 @@ document.getElementById('overlay').addEventListener('mousedown', enterScene);
 document.getElementById('resume').addEventListener('mousedown', enterScene);
 
 function openPanel(item) {
+  reader.stop();
   panelItem = item;
   closeInspector();
   hud.showInfo(item);
   input.exitLock();
 }
 
+/** 打开序厅的抽签小游戏；指针锁定与输入交给游戏接管 */
+function openFortune() {
+  reader.stop();
+  closeInspector();
+  hud.hideInfo();
+  panelItem = null;
+  fortune.open();
+  hudRoot.classList.add('fortune-open');
+  input.exitLock();
+}
+
+/** 指针锁定再次可用 */
+function resumeScene() {
+  input.enabled = true;
+  input.requestLock();
+}
+
 /** 按 E / Esc 关掉介绍，直接回到漫游，不需要再点一次画面 */
 function closePanel() {
+  reader.stop();
   closeInspector();
   hud.hideInfo();
   panelItem = null;
@@ -125,25 +177,88 @@ function openInspector() {
 
 function closeInspector() {
   if (!inspector.isOpen()) return;
+  reader.stop();
   inspector.close();
   inspectOverlay.classList.add('hidden');
+}
+
+/** 从抽签结果里按 O 单独观察对应展品的 3D 模型 */
+function openArtifactInspector(artifact) {
+  if (!artifact) return;
+  reader.stop();
+  const { object } = createArtifactObject(artifact);
+  inspector.open(object, { title: artifact.name, tag: artifact.tag });
+  inspectTag.textContent = artifact.tag ?? '';
+  inspectTitle.textContent = artifact.name;
+  inspectOverlay.classList.remove('hidden');
+  inspector.resize();
+}
+
+/** 按 L：朗读当前交互界面里的文字（正在朗读时再按一次则停止） */
+function readCurrentInterface() {
+  if (!reader.isEnabled()) {
+    hud.showToast('请先在设置里启用朗读器');
+    return;
+  }
+  if (reader.isSpeaking()) {
+    reader.stop();
+    return;
+  }
+
+  let text = '';
+  if (fortune.isStoryOpen()) text = fortune.storyText();
+  else if (hud.isPanelOpen()) text = hud.panelText();
+  else if (inspector.isOpen()) text = [inspectTag.textContent, inspectTitle.textContent].filter(Boolean).join('。');
+
+  if (!text) {
+    hud.showToast('当前界面没有可朗读的文字');
+    return;
+  }
+  reader.speak(text);
+  hud.showToast('朗读中…再按 L 停止');
 }
 
 window.addEventListener('keydown', (event) => {
   if (event.code === 'KeyE') {
     if (inspector.isOpen()) return;
+    if (fortune.isOpen()) {
+      reader.stop();
+      fortune.handleKey('KeyE');
+      if (!fortune.isOpen()) {
+        hudRoot.classList.remove('fortune-open');
+        resumeScene();
+      }
+      return;
+    }
     if (hud.isPanelOpen()) closePanel();
-    else if (activeItem) openPanel(activeItem);
+    else if (activeItem) {
+      if (activeItem.kind === 'fortune') openFortune();
+      else openPanel(activeItem);
+    }
   } else if (event.code === 'KeyO') {
+    if (fortune.isOpen()) {
+      fortune.handleKey('KeyO');
+      return;
+    }
     openInspector();
   } else if (event.code === 'KeyV') {
-    // 面板/观察模式是模态的，那里不切视角
-    if (inspector.isOpen() || hud.isPanelOpen()) return;
+    // 面板/观察/抽签模式是模态的，那里不切视角
+    if (inspector.isOpen() || hud.isPanelOpen() || fortune.isOpen()) return;
     hud.setViewMode(player.toggleMode());
+  } else if (event.code === 'KeyL') {
+    event.preventDefault();
+    readCurrentInterface();
   } else if (event.code === 'Escape') {
-    // Esc 在观察模式里回到介绍面板，在介绍面板里回到场景
+    // Esc 在观察模式里回到介绍面板，在介绍面板/抽签里回到场景
     if (inspector.isOpen()) closeInspector();
-    else if (hud.isPanelOpen()) closePanel();
+    else if (fortune.isOpen()) {
+      reader.stop();
+      fortune.handleKey('Escape');
+      if (!fortune.isOpen()) {
+        hudRoot.classList.remove('fortune-open');
+        resumeScene();
+      }
+    } else if (hud.isPanelOpen()) closePanel();
   }
 });
 
@@ -173,6 +288,7 @@ function resize() {
   camera.updateProjectionMatrix();
   renderer.setSize(width, height, false);
   inspector.resize();
+  fortune.resize();
 }
 
 window.addEventListener('resize', resize);
@@ -190,7 +306,7 @@ function frame() {
   const dt = Math.min(clock.getDelta(), 0.05);
   elapsed += dt;
 
-  const blockInput = hud.isPanelOpen() || inspector.isOpen();
+  const blockInput = hud.isPanelOpen() || inspector.isOpen() || fortune.isOpen();
   input.enabled = !blockInput;
 
   player.update(dt, camera, input, !blockInput);
@@ -211,10 +327,11 @@ function frame() {
 
   renderer.render(scene, camera);
   inspector.update(dt);
+  fortune.update(dt);
   requestAnimationFrame(frame);
 }
 
 requestAnimationFrame(frame);
 
 // 方便在浏览器控制台里调试：window.museumApp.museum / .player / .audio ...
-window.museumApp = { scene, camera, renderer, museum, player, input, hud, inspector, audio };
+window.museumApp = { scene, camera, renderer, museum, player, input, hud, inspector, fortune, audio, reader };

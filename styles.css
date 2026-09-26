@@ -187,6 +187,78 @@ input[type='range']::-moz-range-thumb {
   color: #8b7a68;
 }
 
+/* 朗读器开关：空心方块，启用后内部出现绿色对勾 */
+.check-toggle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  margin-top: 14px;
+  padding: 12px 0 0;
+  border: none;
+  border-top: 1px solid #3a2a22;
+  background: none;
+  color: #cfc4b8;
+  font-family: inherit;
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.check-box {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 18px;
+  height: 18px;
+  border: 1px solid #8a6540;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.28);
+  transition: border-color 0.16s ease, background 0.16s ease;
+}
+
+.check-box svg {
+  width: 14px;
+  height: 14px;
+  fill: none;
+  stroke: #46d17a;
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  opacity: 0;
+  transform: scale(0.6);
+  transition: opacity 0.16s ease, transform 0.16s ease;
+}
+
+.check-toggle[aria-checked='true'] .check-box {
+  border-color: #46d17a;
+  background: rgba(70, 209, 122, 0.12);
+}
+
+.check-toggle[aria-checked='true'] .check-box svg {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.check-toggle[aria-checked='true'] {
+  color: #9fe6b8;
+}
+
+.check-state {
+  margin-left: auto;
+  font-size: 11px;
+  color: #8b7a68;
+}
+
+.check-toggle[aria-checked='true'] .check-state {
+  color: #46d17a;
+}
+
+.check-toggle:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
 /* ---------------- 操作提示 ---------------- */
 
 #hint {
@@ -368,6 +440,7 @@ kbd {
 #inspect {
   position: fixed;
   inset: 0;
+  z-index: 6;
   /* 只虚化背后的场景与 HUD，观察用的画布在它上面，不受影响 */
   backdrop-filter: blur(16px) saturate(0.85);
   background: radial-gradient(circle at 50% 45%, rgba(18, 20, 28, 0.55), rgba(8, 9, 13, 0.86));
@@ -419,6 +492,334 @@ kbd {
   letter-spacing: 1px;
   color: #9c9384;
   pointer-events: none;
+}
+
+/* ---------------- 抽签小游戏 ---------------- */
+
+#fortune {
+  position: fixed;
+  inset: 0;
+  z-index: 5;
+  /* 背景虚化：博物馆场景与 HUD 都被挡在后面 */
+  backdrop-filter: blur(15px) saturate(0.82);
+  background: radial-gradient(circle at 50% 42%, rgba(30, 22, 16, 0.52), rgba(7, 6, 9, 0.9));
+  pointer-events: auto;
+  transition: opacity 0.24s ease;
+}
+
+#fortune-canvas {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  transition: opacity 0.3s ease;
+}
+
+/* 抽中木签后，把签筒淡出，只留居中的木签卡片 */
+#fortune.result-open #fortune-canvas,
+#fortune.story-open #fortune-canvas {
+  opacity: 0;
+}
+
+#fortune-head {
+  position: absolute;
+  top: 38px;
+  left: 50%;
+  transform: translateX(-50%);
+  text-align: center;
+  pointer-events: none;
+  transition: opacity 0.24s ease;
+}
+
+#fortune-head span {
+  font-size: 11px;
+  letter-spacing: 4px;
+  color: #d8a04a;
+}
+
+#fortune-head h2 {
+  margin: 8px 0 0;
+  font-size: 24px;
+  font-weight: 600;
+  letter-spacing: 6px;
+  color: #f4ead6;
+}
+
+#fortune-tip {
+  position: absolute;
+  left: 50%;
+  bottom: 132px;
+  transform: translateX(-50%);
+  padding: 6px 18px;
+  border-radius: 999px;
+  background: rgba(24, 17, 14, 0.6);
+  font-size: 13px;
+  letter-spacing: 1px;
+  color: #e6d6b8;
+  white-space: nowrap;
+  pointer-events: none;
+  transition: opacity 0.24s ease;
+}
+
+#fortune-actions {
+  position: absolute;
+  left: 50%;
+  bottom: 62px;
+  transform: translateX(-50%);
+  z-index: 2;
+  transition: opacity 0.24s ease;
+}
+
+#fortune-shake {
+  padding: 14px 40px;
+  border: 1px solid #8a6231;
+  border-radius: 999px;
+  background: linear-gradient(180deg, #d3a445, #9a6427);
+  color: #fff8e8;
+  font-family: inherit;
+  font-size: 16px;
+  letter-spacing: 8px;
+  text-indent: 8px;
+  cursor: pointer;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.4);
+  transition: filter 0.16s ease, transform 0.12s ease;
+}
+
+#fortune-shake:hover:enabled {
+  filter: brightness(1.08);
+}
+
+#fortune-shake:active:enabled {
+  transform: translateY(1px) scale(0.99);
+}
+
+#fortune-shake:disabled {
+  opacity: 0.42;
+  cursor: default;
+}
+
+#fortune-footer {
+  position: absolute;
+  left: 50%;
+  bottom: 22px;
+  transform: translateX(-50%);
+  font-size: 12px;
+  letter-spacing: 1px;
+  color: #9c8f7c;
+  pointer-events: none;
+  transition: opacity 0.24s ease;
+}
+
+/* 抽中的木签：居中单独展示 */
+#fortune-result {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  pointer-events: none;
+  transition: opacity 0.28s ease, transform 0.28s ease;
+}
+
+.fortune-slip {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  width: min(300px, 70vw);
+  padding: 26px 24px 22px;
+  border: 1px solid #6b4a2c;
+  border-radius: 12px;
+  background: linear-gradient(160deg, #efe0bd 0%, #d8c295 46%, #bda577 100%);
+  box-shadow: 0 26px 60px rgba(0, 0, 0, 0.6), inset 0 0 0 2px rgba(255, 255, 255, 0.16),
+    inset 0 -24px 40px rgba(120, 84, 40, 0.28);
+  color: #3a2a1e;
+  font-family: inherit;
+  cursor: pointer;
+  pointer-events: auto;
+}
+
+.fortune-slip:hover {
+  filter: brightness(1.04);
+}
+
+#fortune-fate {
+  display: block;
+  width: 100%;
+  padding-bottom: 12px;
+  border-bottom: 1px solid rgba(107, 74, 44, 0.45);
+  font-family: 'KaiTi', 'STKaiti', 'Kaiti SC', serif;
+  font-size: 58px;
+  line-height: 1.1;
+  letter-spacing: 6px;
+  color: #9c2b24;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.35);
+}
+
+#fortune-fate.great {
+  font-size: 48px;
+  letter-spacing: 10px;
+}
+
+.fortune-slip-art {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  border: 1px solid rgba(107, 74, 44, 0.5);
+  border-radius: 8px;
+  background: radial-gradient(circle at 50% 38%, rgba(255, 252, 244, 0.85), rgba(210, 192, 158, 0.55));
+  overflow: hidden;
+}
+
+.fortune-slip-art img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  filter: drop-shadow(0 10px 14px rgba(60, 40, 18, 0.35));
+}
+
+.fortune-slip-caption {
+  font-size: 13px;
+  letter-spacing: 3px;
+  color: #6b4a2c;
+}
+
+.fortune-slip-hint {
+  margin: 0;
+  font-size: 12px;
+  letter-spacing: 1px;
+  color: #b3a48c;
+}
+
+#fortune-again {
+  padding: 9px 26px;
+  border: 1px solid #8a6231;
+  border-radius: 999px;
+  background: rgba(24, 17, 14, 0.72);
+  color: #e8d3b6;
+  font-family: inherit;
+  font-size: 13px;
+  letter-spacing: 3px;
+  cursor: pointer;
+  pointer-events: auto;
+  transition: background 0.16s ease, color 0.16s ease;
+}
+
+#fortune-again:hover {
+  background: rgba(60, 42, 26, 0.9);
+  color: #fff3d8;
+}
+
+/* 展品故事：淡黑半透明卷轴文本框 */
+#fortune-story {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  flex-direction: column;
+  width: min(640px, 84vw);
+  max-height: min(68vh, 580px);
+  padding: 26px 30px 18px;
+  border: 1px solid rgba(199, 154, 44, 0.4);
+  border-radius: 14px;
+  background: rgba(11, 9, 8, 0.72);
+  backdrop-filter: blur(9px);
+  box-shadow: 0 30px 70px rgba(0, 0, 0, 0.65);
+  pointer-events: auto;
+  transition: opacity 0.26s ease, transform 0.26s ease;
+}
+
+#fortune-story::before {
+  content: '';
+  position: absolute;
+  inset: 7px;
+  border: 1px solid rgba(199, 154, 44, 0.22);
+  border-radius: 9px;
+  pointer-events: none;
+}
+
+#fortune-story-head {
+  flex: none;
+  padding-bottom: 12px;
+  border-bottom: 1px solid rgba(199, 154, 44, 0.22);
+}
+
+#fortune-story-tag {
+  font-size: 11px;
+  letter-spacing: 3px;
+  color: #d8a04a;
+}
+
+#fortune-story-title {
+  margin: 8px 0 0;
+  font-size: 21px;
+  letter-spacing: 3px;
+  color: #f4ead6;
+}
+
+#fortune-story-body {
+  flex: 1 1 auto;
+  min-height: 90px;
+  margin: 16px 0;
+  padding-right: 14px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  white-space: pre-wrap;
+  font-size: 14px;
+  line-height: 1.95;
+  letter-spacing: 0.5px;
+  color: #cec2ad;
+  scrollbar-width: thin;
+  scrollbar-color: #6b4a2c transparent;
+}
+
+#fortune-story-body::-webkit-scrollbar {
+  width: 7px;
+}
+
+#fortune-story-body::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: #6b4a2c;
+}
+
+.fortune-story-hint {
+  flex: none;
+  margin: 0;
+  padding-top: 12px;
+  border-top: 1px solid rgba(199, 154, 44, 0.22);
+  font-size: 11px;
+  letter-spacing: 1px;
+  color: #8b7a68;
+}
+
+/* 打开木签 / 故事时，收起签筒的按钮与提示 */
+#fortune.result-open #fortune-actions,
+#fortune.result-open #fortune-tip,
+#fortune.result-open #fortune-head,
+#fortune.result-open #fortune-footer,
+#fortune.story-open #fortune-actions,
+#fortune.story-open #fortune-tip,
+#fortune.story-open #fortune-head,
+#fortune.story-open #fortune-footer,
+#fortune.story-open #fortune-result {
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* 抽签时收起 HUD 上的漫游提示，避免与虚化背景叠在一起 */
+#hud.fortune-open #resume,
+#hud.fortune-open #overlay,
+#hud.fortune-open #prompt,
+#hud.fortune-open #hint,
+#hud.fortune-open #stats {
+  opacity: 0;
+  visibility: hidden;
 }
 
 .hidden {
