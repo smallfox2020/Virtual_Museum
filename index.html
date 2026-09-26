@@ -99,6 +99,19 @@
           <span class="check-state" id="minimap-state">关闭</span>
         </button>
         <button
+          id="music-loop"
+          class="check-toggle"
+          type="button"
+          role="checkbox"
+          aria-checked="true"
+        >
+          <span class="check-box" aria-hidden="true">
+            <svg viewBox="0 0 24 24"><path d="M4.5 12.5l5 5 10-11" /></svg>
+          </span>
+          <span class="check-label">音乐模式</span>
+          <span class="check-state" id="music-loop-state">循环当前曲目</span>
+        </button>
+        <button
           id="roomtitle-toggle"
           class="check-toggle"
           type="button"
@@ -230,6 +243,7 @@
             <button id="quiz-start" class="quiz-primary" type="button">开始推理</button>
             <button id="quiz-daily" type="button">每日一猜</button>
             <button id="quiz-codex-open" type="button">展品图鉴</button>
+            <button id="quiz-reset" class="quiz-reset" type="button">重置积分</button>
             <button id="quiz-exit" type="button">退出猜谜</button>
           </div>
           <p id="quiz-menu-stats" class="quiz-stats"></p>
