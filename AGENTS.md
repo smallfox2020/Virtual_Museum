@@ -137,6 +137,7 @@ chrome --headless=new --remote-debugging-port=97xx --enable-unsafe-swiftshader
 
 ## 与用户协作的方式
 
+- **提交信息用英文**，遵循 conventional commits（`feat(scope): ...` / `fix(scope): ...`），正文可用条目式英文。
 - **回答要短。** 用户说过"就回答可以或者不行"。不要写多余工具、不要过度设计。
 - 用户会**并行提交自己的功能**，改公共文件时留意冲突。
 - 汇报格式：先给结论表格（用户意见 → 处理 → 验证结果），再单独列出"可能仍有问题/我做不到的部分"。
