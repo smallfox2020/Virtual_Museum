@@ -1055,29 +1055,59 @@ function shapeMeiPing() {
 }
 
 /** 青瓷莲花尊 */
+/** 青瓷莲花尊：口沿外撇、腹饰三层仰莲、颈饰小莲、下承喇叭形圈足、上有宝珠盖 */
 function shapeLotusZun() {
   const m = materials();
   const group = new THREE.Group();
+
+  // 器身：一次旋成。口沿外撇、束颈、鼓腹、下收为喇叭形高圈足
   const body = mesh(
-    lathe([[0.01, 0], [0.15, 0], [0.18, 0.05], [0.2, 0.16], [0.26, 0.3], [0.24, 0.44], [0.18, 0.56], [0.14, 0.66], [0.17, 0.74], [0.16, 0.78]]),
+    lathe([
+      [0.01, 0], [0.16, 0], [0.19, 0.04], [0.17, 0.09], [0.13, 0.14],
+      [0.16, 0.22], [0.22, 0.32], [0.26, 0.42], [0.25, 0.52], [0.2, 0.62],
+      [0.15, 0.7], [0.16, 0.76], [0.2, 0.82], [0.19, 0.85],
+    ]),
     m.celadon,
   );
   body.material.side = THREE.DoubleSide;
   group.add(body);
-  for (const [y, radius, count, size] of [[0.2, 0.24, 12, 0.13], [0.36, 0.27, 12, 0.14], [0.52, 0.22, 10, 0.12]]) {
+
+  /**
+   * 一圈莲瓣。每片用一个只绕 y 转的 holder 定位，瓣自己只绕 z 倾——
+   * 不用手写欧拉角三元组。原来那句 [-sin(a)*0.5, -a, cos(a)*0.5]
+   * 把绕轴与倾斜搞在一起，每片瓣的倒向都不一样，远看是乱的。
+   * scale.x 压扁：瓣的法向朝外（径向薄、切向宽），压扁的必须是 x 不是 z。
+   */
+  const tier = (y, radius, count, w, h, tilt) => {
     for (let i = 0; i < count; i += 1) {
-      const a = (i / count) * Math.PI * 2;
-      const petal = mesh(
-        new THREE.ConeGeometry(size * 0.5, size * 2, 8, 1, true),
-        m.celadon,
-        [Math.cos(a) * radius, y, Math.sin(a) * radius],
-        [-Math.sin(a) * 0.5, -a, Math.cos(a) * 0.5],
-      );
-      petal.material.side = THREE.DoubleSide;
-      group.add(petal);
+      const holder = new THREE.Group();
+      holder.rotation.y = -(i / count) * Math.PI * 2;
+      const petal = mesh(new THREE.ConeGeometry(w, h, 6), m.celadon, [radius, y, 0], [0, 0, -tilt]);
+      petal.scale.x = 0.42;
+      holder.add(petal);
+      group.add(holder);
     }
+  };
+  // 腹：三层仰莲，自下而上逐层收小，瓣尖一律朝上外
+  tier(0.3, 0.27, 14, 0.1, 0.2, 0.52);
+  tier(0.44, 0.29, 14, 0.1, 0.2, 0.46);
+  tier(0.57, 0.25, 12, 0.09, 0.17, 0.4);
+  // 颈：一圈小莲瓣
+  tier(0.72, 0.18, 10, 0.06, 0.11, 0.3);
+  // 圈足：一圈倒莲，向外张得更开
+  tier(0.1, 0.19, 12, 0.07, 0.1, 0.7);
+
+  // 弦纹：层与层交界处一道凸棱，把莲瓣分开读
+  for (const [y, r] of [[0.4, 0.25], [0.53, 0.25], [0.65, 0.185]]) {
+    group.add(mesh(new THREE.TorusGeometry(r, 0.008, 6, 32), m.celadon, [0, y, 0], [Math.PI / 2, 0, 0]));
   }
-  group.add(mesh(new THREE.ConeGeometry(0.16, 0.12, 24), m.celadon, [0, 0.82, 0]));
+  // 口沿：外撇的一圈厚唇
+  group.add(mesh(new THREE.TorusGeometry(0.195, 0.018, 8, 32), m.celadon, [0, 0.85, 0], [Math.PI / 2, 0, 0]));
+
+  // 盖：覆钵 + 宝珠钮
+  group.add(mesh(new THREE.SphereGeometry(0.13, 20, 10, 0, Math.PI * 2, 0, Math.PI / 2), m.celadon, [0, 0.87, 0]));
+  group.add(mesh(new THREE.TorusGeometry(0.075, 0.012, 6, 24), m.celadon, [0, 0.94, 0], [Math.PI / 2, 0, 0]));
+  group.add(mesh(new THREE.SphereGeometry(0.05, 16, 12), m.celadon, [0, 1.02, 0]));
   return group;
 }
 
@@ -1108,13 +1138,47 @@ function shapeBowl() {
 }
 
 /** 彩绘陶俑 */
+/** 彩绘陶俑：束发、交领长袍、拱手而立 */
 function shapeFigure() {
   const m = materials();
   const group = new THREE.Group();
-  group.add(mesh(new THREE.CylinderGeometry(0.13, 0.17, 0.52, 20), m.clay, [0, 0.26, 0]));
-  group.add(mesh(new THREE.SphereGeometry(0.09, 26, 20), m.clay, [0, 0.62, 0]));
-  group.add(mesh(new THREE.BoxGeometry(0.08, 0.16, 0.3), m.clay, [0, 0.42, 0.02]));
-  group.add(mesh(new THREE.TorusGeometry(0.12, 0.022, 8, 24), m.red, [0, 0.5, 0], [Math.PI / 2, 0, 0]));
+
+  // 方座
+  group.add(mesh(new THREE.CylinderGeometry(0.13, 0.15, 0.06, 16), m.clay, [0, 0.03, 0]));
+
+  // 长袍：下摆外撇、腰收、肩窄，一次旋成
+  const robe = mesh(
+    lathe([
+      [0.01, 0], [0.15, 0], [0.16, 0.04], [0.14, 0.14], [0.115, 0.3],
+      [0.1, 0.42], [0.085, 0.5], [0.06, 0.56], [0.03, 0.58],
+    ]),
+    m.clay,
+  );
+  robe.material.side = THREE.DoubleSide;
+  group.add(robe);
+
+  // 彩绘：下摆一道朱色宽边、腰上一道黑带、胸前一道斜的交领
+  group.add(mesh(new THREE.TorusGeometry(0.152, 0.012, 6, 24), m.red, [0, 0.06, 0], [Math.PI / 2, 0, 0]));
+  group.add(mesh(new THREE.TorusGeometry(0.1, 0.01, 6, 22), m.black, [0, 0.4, 0], [Math.PI / 2, 0, 0]));
+  group.add(mesh(new THREE.BoxGeometry(0.075, 0.022, 0.13), m.red, [0, 0.46, 0.03], [0, 0, 0.45]));
+
+  // 双臂：自肩垂下，袖口略宽，双手拱于胸前
+  for (const side of [-1, 1]) {
+    group.add(mesh(new THREE.CylinderGeometry(0.028, 0.036, 0.28, 10), m.clay, [side * 0.095, 0.4, 0], [0, 0, side * 0.16]));
+    group.add(mesh(new THREE.CylinderGeometry(0.04, 0.036, 0.06, 10), m.clay, [side * 0.07, 0.27, 0.05], [0.5, 0, side * 0.3]));
+  }
+  group.add(mesh(new THREE.SphereGeometry(0.045, 12, 10), m.clay, [0, 0.3, 0.075]));
+
+  // 头：椭球 + 双耳 + 双睛 + 发鬏
+  const head = mesh(new THREE.SphereGeometry(0.072, 20, 16), m.clay, [0, 0.65, 0]);
+  head.scale.set(1, 1.15, 0.95);
+  group.add(head);
+  for (const side of [-1, 1]) {
+    group.add(mesh(new THREE.SphereGeometry(0.016, 8, 6), m.clay, [side * 0.068, 0.65, 0]));
+    group.add(mesh(new THREE.SphereGeometry(0.011, 8, 6), m.black, [side * 0.028, 0.67, 0.058]));
+  }
+  group.add(mesh(new THREE.SphereGeometry(0.045, 14, 10), m.black, [0, 0.72, -0.01]));
+  group.add(mesh(new THREE.TorusGeometry(0.05, 0.008, 6, 20), m.red, [0, 0.71, 0], [Math.PI / 2, 0, 0]));
   return group;
 }
 
@@ -1134,21 +1198,73 @@ function shapeJianDu() {
 }
 
 /** 楚式漆案与耳杯 */
+/** 楚式漆案与耳杯：翘头漆案（板状足、红黑漆绘）+ 双耳椭圆杯 */
 function shapeTable() {
   const m = materials();
   const group = new THREE.Group();
-  group.add(mesh(new THREE.BoxGeometry(0.9, 0.05, 0.5), m.lacquer, [0, 0.34, 0]));
-  for (const x of [-0.38, 0.38]) {
-    for (const z of [-0.18, 0.18]) {
-      group.add(mesh(new THREE.BoxGeometry(0.05, 0.32, 0.05), m.black, [x, 0.17, z]));
+  const topY = 0.36;
+
+  // —— 漆案：案面四周起沿、两端上翘，下承两块开壸门的板状足
+  group.add(mesh(new THREE.BoxGeometry(0.92, 0.045, 0.46), m.lacquer, [0, topY, 0]));
+  // 四沿一道红漆细边 —— 楚漆器的红黑对比是它的招牌
+  for (const dz of [-0.225, 0.225]) {
+    group.add(mesh(new THREE.BoxGeometry(0.92, 0.05, 0.03), m.red, [0, topY + 0.045, dz]));
+  }
+  for (const dx of [-0.455, 0.455]) {
+    group.add(mesh(new THREE.BoxGeometry(0.03, 0.05, 0.46), m.red, [dx, topY + 0.045, 0]));
+  }
+  // 翘头：两端各一块上翘的短板
+  for (const side of [-1, 1]) {
+    group.add(mesh(new THREE.BoxGeometry(0.13, 0.035, 0.44), m.black, [side * 0.5, topY + 0.08, 0], [0, 0, side * -0.42]));
+  }
+  // 案面漆绘：三道细红带，暗示云纹
+  for (let i = 0; i < 3; i += 1) {
+    group.add(mesh(new THREE.BoxGeometry(0.5 - i * 0.1, 0.006, 0.012), m.red, [0, topY + 0.027, -0.09 + i * 0.09]));
+  }
+  // 板状足：两块竖板；壸门缺口用中间留空、两侧加小垛来暗示
+  for (const dx of [-0.32, 0.32]) {
+    // 足高 0.37、中心 0.185：顶面 0.37 咬进案面底面 0.3375，
+    // 原来只有 0.3 高，案面和足之间空着 3.7 cm，看起来就是案面浮在足上
+    group.add(mesh(new THREE.BoxGeometry(0.055, 0.37, 0.44), m.black, [dx, 0.185, 0]));
+    for (const dz of [-0.15, 0.15]) {
+      group.add(mesh(new THREE.BoxGeometry(0.06, 0.13, 0.1), m.red, [dx, 0.065, dz]));
     }
   }
-  for (const [x, z] of [[-0.2, 0], [0.2, 0.06]]) {
-    const cup = mesh(new THREE.CylinderGeometry(0.1, 0.06, 0.06, 20, 1, true), m.red, [x, 0.4, z]);
-    cup.scale.set(1.5, 1, 1);
-    cup.material.side = THREE.DoubleSide;
-    group.add(cup);
-    group.add(mesh(new THREE.BoxGeometry(0.24, 0.015, 0.09), m.red, [x + 0.16, 0.4, z]));
+
+  // —— 耳杯：椭圆杯身，外黑内红，两侧新月形耳，下承椭圆假圈足
+  for (const [x, z, spin] of [[-0.2, -0.02, 0], [0.22, 0.08, 0.32]]) {
+    const holder = new THREE.Group();
+    holder.position.set(x, topY + 0.023, z);
+    holder.rotation.y = spin;
+
+    const body = mesh(
+      lathe([[0.03, 0], [0.1, 0.005], [0.115, 0.03], [0.126, 0.06], [0.13, 0.075]], 22),
+      m.black,
+    );
+    body.scale.set(1.45, 1, 1);
+    holder.add(body);
+
+    // 内膛一块红漆椭圆面：外黑内红
+    const inner = mesh(new THREE.CircleGeometry(0.12, 22), m.red, [0, 0.073, 0], [-Math.PI / 2, 0, 0]);
+    inner.scale.set(1.45, 1, 1);
+    holder.add(inner);
+
+    // 双耳：压扁的环段，摊平后就是新月形的耳
+    for (const side of [-1, 1]) {
+      const ear = mesh(
+        new THREE.TorusGeometry(0.075, 0.022, 8, 18, Math.PI * 0.8),
+        m.red,
+        [side * 0.18, 0.05, 0],
+        [Math.PI / 2, 0, side > 0 ? 0 : Math.PI],
+      );
+      ear.scale.set(1.2, 1, 0.5);
+      holder.add(ear);
+    }
+
+    const foot = mesh(new THREE.CylinderGeometry(0.06, 0.072, 0.02, 18), m.black, [0, -0.008, 0]);
+    foot.scale.set(1.45, 1, 1);
+    holder.add(foot);
+    group.add(holder);
   }
   return group;
 }
@@ -1157,25 +1273,42 @@ function shapeTable() {
 /* ---------------- 第二批器物造型 ---------------- */
 
 /** 铜爵：有流有尾、三足一鋬 */
+/** 铜爵：三足外撅、有根有蹄，口沿立双柱，一侧出流、一侧出尾 */
 function shapeJue() {
   const m = materials();
   const group = new THREE.Group();
+
+  // 器身：口沿外撅、腹微鼓
   const body = mesh(lathe([[0.02, 0], [0.13, 0.02], [0.16, 0.12], [0.15, 0.26], [0.17, 0.34]]), m.bronze);
   body.material.side = THREE.DoubleSide;
   group.add(body);
+
+  // 流（长槽）与尾：一长一短
   group.add(mesh(new THREE.BoxGeometry(0.26, 0.05, 0.1), m.bronze, [0.17, 0.34, 0], [0, 0, 0.22]));
   group.add(mesh(new THREE.ConeGeometry(0.05, 0.2, 4), m.bronze, [-0.16, 0.35, 0], [0, 0, Math.PI / 2 + 0.3]));
-  // 三足：原来是最细只有 2.8cm 的圆锥，像快断了；改成有根有蹄的刀形足
-  for (let i = 0; i < 3; i += 1) {
-    const a = (i / 3) * Math.PI * 2 + 0.4;
-    const lx = Math.cos(a) * 0.1;
-    const lz = Math.sin(a) * 0.1;
-    group.add(mesh(new THREE.CylinderGeometry(0.042, 0.03, 0.1, 12), m.darkBronze, [lx, -0.03, lz]));
-    group.add(mesh(new THREE.CylinderGeometry(0.03, 0.022, 0.16, 12), m.darkBronze, [lx * 1.5, -0.16, lz * 1.5],
-      [Math.cos(a) * 0.2, 0, -Math.sin(a) * 0.2]));
-    group.add(mesh(new THREE.ConeGeometry(0.028, 0.07, 10), m.bronze, [lx * 1.9, -0.27, lz * 1.9], [Math.PI, 0, 0]));
+
+  // 口沿立双柱：爵的标志是两根，原来只立了一根
+  for (const z of [-0.045, 0.045]) {
+    group.add(mesh(new THREE.CylinderGeometry(0.016, 0.02, 0.09, 10), m.bronze, [0.12, 0.4, z]));
+    group.add(mesh(new THREE.SphereGeometry(0.026, 12, 10), m.gold, [0.12, 0.46, z]));
   }
-  group.add(mesh(new THREE.TorusGeometry(0.055, 0.014, 10, 22, Math.PI), m.bronze, [0.15, 0.2, 0], [0, Math.PI / 2, 0.4]));
+
+  // 三足：根粗、足身是刀形三棱柱（有平面也有棱），末端外撅成蹄。
+  // 原来是一根 2.2~3.0 cm 的细圆锥直接支在地上，所以又细又像浮着。
+  for (let i = 0; i < 3; i += 1) {
+    const holder = new THREE.Group();
+    holder.rotation.y = -(i / 3) * Math.PI * 2 - 0.4;
+    holder.add(
+      mesh(new THREE.CylinderGeometry(0.072, 0.056, 0.13, 14), m.darkBronze, [0.09, -0.04, 0]),   // 足根裹住器底
+      mesh(new THREE.CylinderGeometry(0.056, 0.043, 0.22, 3), m.darkBronze, [0.15, -0.19, 0], [0, 0, 0.22]), // 足身
+      mesh(new THREE.CylinderGeometry(0.043, 0.06, 0.07, 12), m.bronze, [0.175, -0.315, 0], [0, 0, 0.22]),   // 蹄
+      mesh(new THREE.CylinderGeometry(0.06, 0.052, 0.03, 12), m.bronze, [0.185, -0.36, 0], [0, 0, 0.22]),    // 足端平面
+    );
+    group.add(holder);
+  }
+
+  // 鋬（把手）
+  group.add(mesh(new THREE.TorusGeometry(0.055, 0.016, 10, 22, Math.PI), m.bronze, [0.15, 0.2, 0], [0, Math.PI / 2, 0.4]));
   group.add(mesh(new THREE.TorusGeometry(0.11, 0.014, 10, 26), m.gold, [0, 0.34, 0], [Math.PI / 2, 0, 0]));
   return group;
 }
@@ -1335,14 +1468,19 @@ export function buildChimeBells() {
   const SHORT = 4.4;
   const BEAM = 0.28;
   const BEAM_DEPTH = 0.3;
-  const POST_TOP = 4.6;
-  /** 钟体横向放大系数：钟架变大了，钟也要跟着变宽，否则显得又细又长 */
-  const BELL_WIDTH = 1.35;
+  const POST_TOP = 5.4;
+  /** 钟体横向放大系数：第一层为基准，其余层按比例递减（见 tiers.width） */
 
+  // 层高不只是美观问题：上一层钟的「钟口」必须高于下一层横梁的顶面，
+  // 否则钟会从上往下插进木头（原来二层钟插进一层梁、三层钟插进二层梁）。
+  // 可用高度 = (上一层梁底 y−0.14) − (下一层梁顶 y+0.14)。
   const tiers = [
-    { y: 2.4, height: 1.28, spacing: 1.12, yong: 0.3 },
-    { y: 3.4, height: 0.84, spacing: 0.63, yong: 0.3 },
-    { y: 4.2, height: 0.53, spacing: 0.48, yong: 0 },
+    // 最底下一层原来只有 8 枚，臂的两端和中段都显得空。
+    // 排距压到 0.90、钟宽收到 1.10（实际钟宽 0.77）后可以排 10 枚；
+    // 中间那两枚会浅浅咬进漆木立柱 —— skipPost: false，按用户明确接受的「一点小穿模」处理。
+    { y: 2.5, height: 1.28, spacing: 0.9, yong: 0.3, width: 1.1, skipPost: false },
+    { y: 3.95, height: 0.84, spacing: 0.78, yong: 0.26, width: 0.95 }, // 钟宽 0.665，间隙 0.115
+    { y: 5.0, height: 0.53, spacing: 0.5, yong: 0.15, width: 0.62 },   // 钟宽 0.434，间隙 0.066
   ];
   const arms = [
     { axis: 'x', length: LONG, center: [LONG / 2, 0] },
@@ -1354,7 +1492,7 @@ export function buildChimeBells() {
   const unit = new THREE.Vector3(1, 1, 1);
 
   for (const tier of tiers) {
-    const geometry = makeBellGeometry(tier.height, BELL_WIDTH);
+    const geometry = makeBellGeometry(tier.height, tier.width);
     const stemLength = tier.height * tier.yong;
 
     for (const arm of arms) {
@@ -1374,13 +1512,29 @@ export function buildChimeBells() {
       );
 
       const count = Math.max(1, Math.floor((arm.length - 0.5) / tier.spacing));
-      const start = -(count - 1) / 2;
-      const bells = new THREE.InstancedMesh(geometry, m.bronze, count);
+      // 立柱里有一根就在臂的中点（posts 里的 [LONG/2, 0] 与 [0, -SHORT/2]），
+      // 而钟是沿臂均布铺满的，于是中间那几枚直接套在柱子上。
+      // 把落在「柱半径 + 半个钟宽」以内的档位整档跳过，再重新居中。
+      // skipPost: false 的层不避让立柱（最底层为了挂满，允许浅咬）
+      const clearance = 0.19 + (0.7 * tier.width) / 2 + 0.03;
+      const offsets = [];
+      for (let i = 0; i < count; i += 1) {
+        const offset = (-(count - 1) / 2 + i) * tier.spacing;
+        if (tier.skipPost === false || Math.abs(offset) >= clearance) offsets.push(offset);
+      }
+      const mid = offsets.length ? (offsets[0] + offsets[offsets.length - 1]) / 2 : 0;
+      for (let i = 0; i < offsets.length; i += 1) offsets[i] -= mid;
+
+      const bells = new THREE.InstancedMesh(geometry, m.bronze, offsets.length);
       bells.castShadow = true;
+      // 每根臂都要重置四元数！原来只在 z 臂上 setFromAxisAngle，
+      // 而 quaternion 声明在两层循环之外 —— 第一层的 z 臂转过 90° 以后，
+      // 后面两层 x 臂的钟也跟着转了 90°，所以「上面两层钟的朝向不对」。
+      quaternion.identity();
       if (arm.axis === 'z') quaternion.setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.PI / 2);
 
-      for (let i = 0; i < count; i += 1) {
-        const offset = (start + i) * tier.spacing;
+      for (let i = 0; i < offsets.length; i += 1) {
+        const offset = offsets[i];
         const bottom = -BEAM / 2 - tier.height - stemLength;
         const position =
           arm.axis === 'x' ? new THREE.Vector3(offset, bottom, 0) : new THREE.Vector3(0, bottom, offset);
