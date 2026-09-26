@@ -12,6 +12,8 @@ export class Input {
     this.onLockChange = () => {};
 
     window.addEventListener('keydown', (event) => {
+      // 输入框里打字时不要触发漫游输入
+      if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) return;
       if (event.repeat) return;
       if (event.code === 'Space') {
         this.jumpQueued = true;

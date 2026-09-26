@@ -25,8 +25,7 @@ export function createReader() {
   }
 
   /** 朗读一段文字，返回是否真的开始朗读 */
-  function speak(text) {
-    if (!supported || !enabled) return false;
+  function utter(text) {
     const content = String(text ?? '')
       .replace(/[ \t]+/g, ' ')
       .replace(/\s*\n\s*/g, '。')
@@ -41,6 +40,18 @@ export function createReader() {
     utterance.pitch = 1;
     window.speechSynthesis.speak(utterance);
     return true;
+  }
+
+  /** 仅在朗读器开启时朗读 */
+  function speak(text) {
+    if (!supported || !enabled) return false;
+    return utter(text);
+  }
+
+  /** 无论开关如何都朗读（供猜谜的语音导览 / 声音猜物使用） */
+  function announce(text) {
+    if (!supported) return false;
+    return utter(text);
   }
 
   function stop() {
@@ -61,6 +72,7 @@ export function createReader() {
       return enabled;
     },
     speak,
+    announce,
     stop,
     isSpeaking: () => supported && window.speechSynthesis.speaking,
   };

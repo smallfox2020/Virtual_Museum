@@ -53,6 +53,8 @@ export function createHud() {
       }
       if (item.kind === 'fortune') {
         prompt.innerHTML = `按 <kbd>E</kbd> 摇签问古`;
+      } else if (item.kind === 'quiz') {
+        prompt.innerHTML = `按 <kbd>E</kbd> 开始推理`;
       } else {
         prompt.innerHTML = item.model
           ? `按 <kbd>E</kbd> 查看《${item.title}》 · <kbd>O</kbd> 观察`

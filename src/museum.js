@@ -631,6 +631,77 @@ function buildFortuneStand(scene, colliders, interactables) {
   });
 }
 
+/* ------------------------------------------------------------------ */
+/* 序厅：展品侦探线索板                                                */
+/* ------------------------------------------------------------------ */
+
+/** 序厅里的斜面线索板，靠近后按 E 打开猜谜小游戏 */
+function buildDetectiveStand(scene, colliders, interactables) {
+  const m = materials();
+  const x = -5.4;
+  const z = 13.6;
+  const group = new THREE.Group();
+  group.position.set(x, 0, z);
+
+  const wood = new THREE.MeshStandardMaterial({ color: 0x5a3f2a, roughness: 0.7 });
+  const darkWood = new THREE.MeshStandardMaterial({ color: 0x33231a, roughness: 0.55 });
+  const boardMat = new THREE.MeshStandardMaterial({ color: 0x27403a, roughness: 0.78 });
+
+  const base = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.5, 0.12, 20), darkWood);
+  base.position.y = 0.06;
+  base.castShadow = true;
+  group.add(base);
+
+  const post = new THREE.Mesh(new THREE.BoxGeometry(0.16, 1.05, 0.16), wood);
+  post.position.y = 0.62;
+  post.castShadow = true;
+  group.add(post);
+
+  // 斜面展板
+  const panel = new THREE.Group();
+  panel.position.set(0, 1.3, 0.04);
+  panel.rotation.x = -0.5;
+
+  const frame = new THREE.Mesh(new THREE.BoxGeometry(1.04, 0.76, 0.05), darkWood);
+  frame.position.z = -0.035;
+  frame.castShadow = true;
+  panel.add(frame);
+
+  const slab = new THREE.Mesh(new THREE.BoxGeometry(0.95, 0.68, 0.05), boardMat);
+  panel.add(slab);
+
+  const lens = new THREE.Mesh(new THREE.TorusGeometry(0.12, 0.018, 8, 28), m.gold);
+  lens.position.set(-0.24, 0.05, 0.04);
+  panel.add(lens);
+
+  const handle = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.018, 0.15, 8), m.gold);
+  handle.position.set(-0.13, -0.07, 0.04);
+  handle.rotation.z = Math.PI / 4;
+  panel.add(handle);
+
+  const signTexture = tex.makeSignTexture('展品侦探', 'EXHIBIT DETECTIVE');
+  const signHeight = 0.42 * (signTexture.image.height / signTexture.image.width);
+  const sign = new THREE.Mesh(
+    new THREE.PlaneGeometry(0.42, signHeight),
+    new THREE.MeshStandardMaterial({ map: signTexture, roughness: 0.6, emissive: 0x241512, emissiveIntensity: 0.4 }),
+  );
+  sign.position.set(0.18, 0.03, 0.04);
+  panel.add(sign);
+
+  group.add(panel);
+  scene.add(group);
+
+  colliders.push({ x, z, radius: 0.65 });
+  interactables.push({
+    position: new THREE.Vector3(x, 1.4, z),
+    radius: 2.6,
+    title: '展品侦探',
+    tag: '序厅 · 猜谜',
+    desc: '一块线索板：翻开年代、材质、出土地等线索，推理并猜出对应的展品。',
+    kind: 'quiz',
+  });
+}
+
 /* ================================================================== */
 /* 展台与展品                                                          */
 /* ================================================================== */
@@ -709,6 +780,7 @@ function buildArtifact(artifact) {
       tag: artifact.tag,
       desc: artifact.desc,
       model: object,
+      kind: 'artifact',
     },
   };
 }
@@ -797,6 +869,7 @@ export function createMuseum(scene) {
   buildPartitions(scene, colliders);
   buildScrolls(scene, interactables);
   buildFortuneStand(scene, colliders, interactables);
+  buildDetectiveStand(scene, colliders, interactables);
   buildLights(scene);
 
   // 编钟厅：曾侯乙编钟
@@ -813,6 +886,7 @@ export function createMuseum(scene) {
     tag: '编钟厅 · 镇馆之宝',
     desc: '三层八组、六十五件青铜钟悬挂在曲尺形的钟架上，总重两千五百余公斤。钟体与钟枚上共有三千七百余字铭文，记述了曾、楚、齐等国的乐律。一钟双音，音域跨五个半八度，出土后仍能演奏。',
     model: bells.group,
+    kind: 'artifact',
   });
 
   buildPedestalBases(scene, ARTIFACTS, colliders);

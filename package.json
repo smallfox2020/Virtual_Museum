@@ -36,6 +36,7 @@
       "styles.css",
       "package.json",
       "src/**/*",
+      "data/**/*",
       "assets/**/*",
       {
         "from": "node_modules/three",

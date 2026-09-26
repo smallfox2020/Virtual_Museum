@@ -57,6 +57,12 @@
             <circle cx="9.5" cy="16.5" r="2.5" fill="none" stroke="currentColor" stroke-width="1.7" />
           </svg>
         </button>
+        <button id="quiz-btn" class="icon-btn" type="button" title="展品侦探（猜谜）" aria-label="展品侦探">
+          <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+            <circle cx="10.5" cy="10.5" r="6" fill="none" stroke="currentColor" stroke-width="1.7" />
+            <path d="M15 15l4.5 4.5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" />
+          </svg>
+        </button>
       </div>
 
       <section id="settings" class="hidden">
@@ -95,7 +101,7 @@
         <span><kbd>E</kbd> 查看展品</span>
         <span><kbd>O</kbd> 观察器物</span>
         <span><kbd>L</kbd> 朗读</span>
-        <span>序厅可摇签问古</span>
+        <span>序厅可摇签问古 · 展品侦探</span>
         <span><kbd>Esc</kbd> 返回</span>
       </div>
 
@@ -114,7 +120,7 @@
         <div class="overlay-card">
           <h2>点击进入序厅</h2>
           <p>一条长廊贯穿南北：两侧是曾侯乙墓、楚文化、青铜器与陶瓷四个展厅，尽头是曾侯乙编钟</p>
-          <p class="overlay-sub">走近展品按 E 查看介绍 · 按 O 单独观察器物 · 序厅的摇签台可按 E 摇签问古 · 按 V 切换第一 / 第三人称 · 右上角可开关音乐与调节音量</p>
+          <p class="overlay-sub">走近展品按 E 查看介绍 · 按 O 单独观察器物 · 序厅的摇签台可摇签问古，线索板可玩展品侦探猜谜 · 按 V 切换第一 / 第三人称 · 右上角可开关音乐与调节音量</p>
         </div>
       </div>
     </div>
@@ -170,6 +176,86 @@
       </div>
 
       <div id="fortune-footer">按 <kbd>Esc</kbd> 退出抽签，继续参观</div>
+    </div>
+
+    <!-- 展品侦探：猜谜小游戏 -->
+    <div id="quiz" class="hidden">
+      <div id="quiz-stage">
+        <button id="quiz-close-x" class="quiz-close" type="button" title="退出猜谜（Esc）" aria-label="退出猜谜">×</button>
+        <!-- 菜单 -->
+        <section id="quiz-menu">
+          <header class="quiz-head">
+            <span>展品侦探</span>
+            <h2>翻开线索，猜出展品</h2>
+          </header>
+          <div class="quiz-block">
+            <h3>玩法</h3>
+            <div id="quiz-modes" class="chip-row"></div>
+          </div>
+          <div class="quiz-block">
+            <h3>难度</h3>
+            <div id="quiz-levels" class="chip-row"></div>
+          </div>
+          <p id="quiz-menu-desc" class="quiz-note"></p>
+          <div class="quiz-actions">
+            <button id="quiz-start" class="quiz-primary" type="button">开始推理</button>
+            <button id="quiz-daily" type="button">每日一猜</button>
+            <button id="quiz-codex-open" type="button">展品图鉴</button>
+            <button id="quiz-exit" type="button">退出猜谜</button>
+          </div>
+          <p id="quiz-menu-stats" class="quiz-stats"></p>
+          <p class="quiz-note quiz-esc-hint">按 <kbd>Esc</kbd> 随时退出，返回展厅继续参观</p>
+        </section>
+
+        <!-- 一局 -->
+        <section id="quiz-round" class="hidden">
+          <header class="quiz-head">
+            <span id="quiz-round-mode">线索卡牌</span>
+            <h2 id="quiz-round-title">第 1 案</h2>
+            <div class="quiz-hud">
+              <span>得分 <b id="quiz-round-score">0</b></span>
+              <span>连胜 <b id="quiz-round-streak">0</b></span>
+              <span>等级 <b id="quiz-round-level">实习生</b></span>
+            </div>
+            <p class="quiz-note quiz-esc-hint">按 <kbd>Esc</kbd> 退出，返回展厅参观</p>
+          </header>
+
+          <div class="quiz-board">
+            <div id="quiz-visual" class="quiz-visual">
+              <img id="quiz-image" alt="展品线索" draggable="false" />
+              <div id="quiz-visual-badge">?</div>
+            </div>
+            <div class="quiz-detail">
+              <p id="quiz-riddle"></p>
+              <div id="quiz-clues" class="quiz-clues"></div>
+              <div id="quiz-answer" class="quiz-answer"></div>
+              <div id="quiz-feedback" class="quiz-feedback hidden"></div>
+            </div>
+          </div>
+
+          <footer class="quiz-foot">
+            <button id="quiz-hint" type="button">翻开线索 <em>-20</em></button>
+            <button id="quiz-reveal" type="button">看答案</button>
+            <button id="quiz-next" class="quiz-primary hidden" type="button">下一题</button>
+            <button id="quiz-quit" type="button">返回菜单</button>
+          </footer>
+        </section>
+
+        <!-- 图鉴 -->
+        <section id="quiz-codex" class="hidden">
+          <header class="quiz-head">
+            <span>展品图鉴</span>
+            <h2 id="quiz-codex-progress"></h2>
+          </header>
+          <div id="quiz-badges" class="quiz-badges"></div>
+          <div id="quiz-codex-grid" class="quiz-codex-grid"></div>
+          <footer class="quiz-foot">
+            <button id="quiz-codex-back" class="quiz-primary" type="button">返回</button>
+            <button id="quiz-share" type="button">分享成绩</button>
+          </footer>
+        </section>
+      </div>
+      <div id="quiz-toast" class="hidden"></div>
     </div>
 
     <script type="module" src="./src/main.js"></script>

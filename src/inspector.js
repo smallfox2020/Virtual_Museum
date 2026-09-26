@@ -62,6 +62,7 @@ export function createInspector(canvas) {
   let targetDistance = 3.6;
   let dragging = false;
   let idle = 0;
+  let spin = null;
   let lastX = 0;
   let lastY = 0;
 
@@ -134,6 +135,7 @@ export function createInspector(canvas) {
     targetDistance = 3.6;
     distance = 3.6;
     idle = 0;
+    spin = null;
     visible = true;
   }
 
@@ -143,6 +145,12 @@ export function createInspector(canvas) {
       holder = null;
     }
     visible = false;
+  }
+
+  /** 自动旋转一整圈（duration 秒），可用于答对后的展示，结束后回调 */
+  function spinOnce(duration = 1, onDone) {
+    spin = { remaining: duration, speed: (Math.PI * 2) / duration, onDone };
+    idle = 0;
   }
 
   function resize() {
@@ -155,7 +163,16 @@ export function createInspector(canvas) {
 
   function update(dt) {
     if (!visible) return;
-    if (!dragging) {
+    if (spin) {
+      const step = Math.min(dt, spin.remaining);
+      yaw += spin.speed * step;
+      spin.remaining -= step;
+      if (spin.remaining <= 0.0001) {
+        const done = spin.onDone;
+        spin = null;
+        done?.();
+      }
+    } else if (!dragging) {
       idle += dt;
       if (idle > 2) yaw += dt * 0.32;
     }
@@ -175,6 +192,8 @@ export function createInspector(canvas) {
     close,
     resize,
     update,
+    spinOnce,
+    isSpinning: () => Boolean(spin),
     isOpen: () => visible,
     /** 当前观察的展品信息，用于标题 */
     info: () => (holder ? holder.userData.info : null),

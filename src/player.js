@@ -491,6 +491,21 @@ export class Player {
     camera.lookAt(this.cameraTarget);
   }
 
+  /** 第三人称镜头是否会插进内墙（矩形碰撞体） */
+  cameraBlocked(x, z) {
+    const margin = 0.32;
+    for (const collider of this.colliders) {
+      if (collider.halfX === undefined) continue;
+      if (
+        Math.abs(x - collider.x) < collider.halfX + margin &&
+        Math.abs(z - collider.z) < collider.halfZ + margin
+      ) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   updateThirdPersonCamera(dt, camera) {
     this.cameraTarget.set(this.position.x, this.position.y + EYE_HEIGHT, this.position.z);
 
@@ -500,6 +515,26 @@ export class Player {
       this.cameraTarget.y + Math.sin(this.pitch) * CAMERA_DISTANCE,
       this.cameraTarget.z + Math.cos(this.yaw) * horizontal,
     );
+
+    // 镜头不要穿过展厅内墙：从人物头部向目标位置步进，遇到墙就把镜头拉近
+    const originX = this.cameraTarget.x;
+    const originZ = this.cameraTarget.z;
+    let allowed = 1;
+    const steps = 16;
+    for (let i = 1; i <= steps; i += 1) {
+      const t = i / steps;
+      if (this.cameraBlocked(originX + (desired.x - originX) * t, originZ + (desired.z - originZ) * t)) {
+        allowed = (i - 1) / steps;
+        break;
+      }
+    }
+    const tight = allowed < 1;
+    if (tight) {
+      const safe = Math.max(0.16, allowed);
+      desired.x = originX + (desired.x - originX) * safe;
+      desired.z = originZ + (desired.z - originZ) * safe;
+      desired.y = this.cameraTarget.y + (desired.y - this.cameraTarget.y) * Math.max(safe, 0.45);
+    }
 
     // 别让镜头穿到墙外或地板下
     const margin = 0.45;
@@ -511,7 +546,8 @@ export class Player {
       this.cameraPosition.copy(desired);
       this.cameraReady = true;
     } else {
-      this.cameraPosition.lerp(desired, 1 - Math.exp(-14 * dt));
+      // 被墙挡住时立刻贴上来，避免镜头停在墙体里
+      this.cameraPosition.lerp(desired, tight ? 1 : 1 - Math.exp(-14 * dt));
     }
 
     camera.position.copy(this.cameraPosition);

@@ -8,6 +8,8 @@ import { createFortune } from './fortune.js';
 import { createArtifactObject } from './artifacts.js';
 import { createAudio } from './audio.js';
 import { createReader } from './reader.js';
+import { createQuiz } from './quiz/quiz.js';
+import { createThumbnailer } from './thumbnails.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 
 const canvas = document.getElementById('scene');
@@ -55,6 +57,35 @@ input.onLockChange = (locked) => {
   hud.setLocked(locked);
 };
 
+/* ---------- 展品侦探：题库与控制器 ---------- */
+
+let puzzles = [];
+try {
+  const response = await fetch('./data/puzzles.json');
+  if (response.ok) puzzles = await response.json();
+} catch (error) {
+  console.warn('[quiz] 题库加载失败：', error);
+}
+
+const thumbnail = createThumbnailer();
+const quiz = createQuiz({
+  puzzles,
+  thumbnail,
+  speak: (text) => reader.announce(text),
+  onReveal: (puzzle) => playExhibitCinematic(puzzle),
+  onSpatialHint: (name) => spatialHint(name),
+  onOpen: () => {
+    reader.stop();
+    hudRoot.classList.add('quiz-open');
+    input.exitLock();
+  },
+  onClose: () => {
+    reader.stop();
+    hudRoot.classList.remove('quiz-open');
+    resumeScene();
+  },
+});
+
 /* ---------- 右上角：音乐与设置 ---------- */
 
 const musicBtn = document.getElementById('music-btn');
@@ -64,6 +95,7 @@ const volumeInput = document.getElementById('volume');
 const volumeValue = document.getElementById('volume-value');
 const readerToggle = document.getElementById('reader-toggle');
 const readerState = document.getElementById('reader-state');
+const quizBtn = document.getElementById('quiz-btn');
 
 audio.setVolume(Number(volumeInput.value) / 100);
 
@@ -76,6 +108,11 @@ musicBtn.addEventListener('click', (event) => {
 settingsBtn.addEventListener('click', (event) => {
   event.stopPropagation();
   settingsPanel.classList.toggle('hidden');
+});
+
+quizBtn.addEventListener('click', (event) => {
+  event.stopPropagation();
+  openQuiz();
 });
 
 volumeInput.addEventListener('input', () => {
@@ -148,6 +185,142 @@ function openFortune() {
   input.exitLock();
 }
 
+/** 打开展品侦探猜谜小游戏 */
+function openQuiz() {
+  if (cinematic.active) return;
+  if (!puzzles.length) {
+    hud.showToast('题库加载失败，无法开始猜谜');
+    return;
+  }
+  reader.stop();
+  closeInspector();
+  hud.hideInfo();
+  panelItem = null;
+  quiz.open();
+}
+
+/* ---------- 猜谜答对后的 3D 反馈：飞到展品前 + 高亮 + 方位提示 ---------- */
+
+const fly = { active: false, t: 0, duration: 0.9, from: { x: 0, z: 0, yaw: 0 }, to: { x: 0, z: 0, yaw: 0 }, onDone: null };
+const cinematic = { active: false };
+let highlight = null;
+
+function shortestAngle(from, to) {
+  let delta = (to - from) % (Math.PI * 2);
+  if (delta > Math.PI) delta -= Math.PI * 2;
+  if (delta < -Math.PI) delta += Math.PI * 2;
+  return delta;
+}
+
+function findExhibit(name) {
+  const matches = museum.interactables.filter((item) => item.title === name);
+  // 有的展板与展品同名（如「越王勾践剑」），优先取真正的 3D 展品
+  return matches.find((item) => item.kind === 'artifact') ?? matches[0] ?? null;
+}
+
+function startFly(to, duration, onDone) {
+  fly.from = { x: player.position.x, z: player.position.z, yaw: player.yaw };
+  fly.to = to;
+  fly.duration = duration;
+  fly.t = 0;
+  fly.active = true;
+  fly.onDone = onDone ?? null;
+}
+
+function flyToExhibit(name, onDone) {
+  const item = findExhibit(name);
+  if (!item) return false;
+  const ex = item.position.x;
+  const ez = item.position.z;
+  let dx = player.position.x - ex;
+  let dz = player.position.z - ez;
+  let length = Math.hypot(dx, dz);
+  if (length < 0.001) {
+    dx = 0;
+    dz = 1;
+    length = 1;
+  }
+  dx /= length;
+  dz /= length;
+  startFly({ x: ex + dx * 2.4, z: ez + dz * 2.4, yaw: Math.atan2(dx, dz) }, 0.9, onDone);
+  return true;
+}
+
+function highlightExhibit(name) {
+  const item = findExhibit(name);
+  if (!item) return;
+  if (!highlight) {
+    const group = new THREE.Group();
+    const ring = new THREE.Mesh(
+      new THREE.TorusGeometry(0.95, 0.045, 8, 48),
+      new THREE.MeshBasicMaterial({ color: 0xffd464, transparent: true, opacity: 0.9 }),
+    );
+    ring.rotation.x = Math.PI / 2;
+    group.add(ring);
+    const light = new THREE.PointLight(0xffd88a, 0, 9, 2);
+    light.position.y = 1.7;
+    group.add(light);
+    group.userData = { ring, light, t: 0, active: false };
+    scene.add(group);
+    highlight = group;
+  }
+  highlight.position.set(item.position.x, 0.05, item.position.z);
+  highlight.userData.t = 0;
+  highlight.userData.active = true;
+  highlight.visible = true;
+}
+
+/** 答对后的过场：隐藏答题 UI → 切第一人称 → 飞到展品前 → 自动旋转展示一圈 → 飞回原位 → 恢复答题 UI */
+function playExhibitCinematic(puzzle) {
+  const item = findExhibit(puzzle.answer);
+  if (!item?.model || cinematic.active) return;
+  cinematic.active = true;
+  const saved = { x: player.position.x, z: player.position.z, yaw: player.yaw, mode: player.mode };
+
+  quiz.setCinematic(true);
+  reader.stop();
+  player.setMode('first');
+  // 抬高视角：默认平视展品，而不是低头看展台基座
+  player.pitch = 0;
+  highlightExhibit(puzzle.answer);
+
+  flyToExhibit(puzzle.answer, () => {
+    inspector.open(item.model, { title: item.title, tag: item.tag });
+    inspectTag.textContent = item.tag ?? '';
+    inspectTitle.textContent = item.title ?? '';
+    inspectOverlay.classList.remove('hidden');
+    inspector.resize();
+    reader.announce(`${puzzle.answer}。${puzzle.explanation}${puzzle.funFact ? ` ${puzzle.funFact}` : ''}`);
+    inspector.spinOnce(1, () => {
+      // 关闭观察（不打断导览语音），再飞回原位
+      inspector.close();
+      inspectOverlay.classList.add('hidden');
+      startFly({ x: saved.x, z: saved.z, yaw: saved.yaw }, 0.9, () => {
+        player.setMode(saved.mode);
+        cinematic.active = false;
+        quiz.setCinematic(false);
+      });
+    });
+  });
+}
+
+/** 答错时的空间方位提示 */
+function spatialHint(name) {
+  const item = findExhibit(name);
+  if (!item) return '它不在你附近，换个展厅找找。';
+  const dx = item.position.x - player.position.x;
+  const dz = item.position.z - player.position.z;
+  const distance = Math.hypot(dx, dz);
+  const forward = { x: -Math.sin(player.yaw), z: -Math.cos(player.yaw) };
+  const right = { x: -forward.z, z: forward.x };
+  const dotF = distance > 0.001 ? (dx * forward.x + dz * forward.z) / distance : 1;
+  const dotR = distance > 0.001 ? (dx * right.x + dz * right.z) / distance : 0;
+  let direction = dotF > 0.6 ? '正前方' : dotF < -0.5 ? '身后' : dotF > 0 ? '前方' : '后方';
+  if (Math.abs(dotR) > 0.45) direction += dotR > 0 ? '偏右' : '偏左';
+  const range = distance < 6 ? '就在附近' : distance < 14 ? `约 ${Math.round(distance)} 米外` : '在展厅另一头';
+  return `它在你${direction}，${range}。`;
+}
+
 /** 指针锁定再次可用 */
 function resumeScene() {
   input.enabled = true;
@@ -196,12 +369,12 @@ function openArtifactInspector(artifact) {
 
 /** 按 L：朗读当前交互界面里的文字（正在朗读时再按一次则停止） */
 function readCurrentInterface() {
-  if (!reader.isEnabled()) {
-    hud.showToast('请先在设置里启用朗读器');
-    return;
-  }
   if (reader.isSpeaking()) {
     reader.stop();
+    return;
+  }
+  if (!reader.isEnabled()) {
+    hud.showToast('请先在设置里启用朗读器');
     return;
   }
 
@@ -219,8 +392,18 @@ function readCurrentInterface() {
 }
 
 window.addEventListener('keydown', (event) => {
+  // 答对后的过场动画期间屏蔽一切按键，避免打断展示
+  if (cinematic.active) return;
   if (event.code === 'KeyE') {
     if (inspector.isOpen()) return;
+    if (quiz.isOpen()) {
+      if (quiz.isHunting()) {
+        if (!activeItem) hud.showToast('走近一件展品再按 E');
+        else if (activeItem.kind === 'artifact') quiz.tryHuntAnswer(activeItem);
+        else hud.showToast('这是展板，按线索去找真正的展品');
+      }
+      return;
+    }
     if (fortune.isOpen()) {
       reader.stop();
       fortune.handleKey('KeyE');
@@ -233,24 +416,27 @@ window.addEventListener('keydown', (event) => {
     if (hud.isPanelOpen()) closePanel();
     else if (activeItem) {
       if (activeItem.kind === 'fortune') openFortune();
+      else if (activeItem.kind === 'quiz') openQuiz();
       else openPanel(activeItem);
     }
   } else if (event.code === 'KeyO') {
+    if (quiz.isOpen()) return;
     if (fortune.isOpen()) {
       fortune.handleKey('KeyO');
       return;
     }
     openInspector();
   } else if (event.code === 'KeyV') {
-    // 面板/观察/抽签模式是模态的，那里不切视角
-    if (inspector.isOpen() || hud.isPanelOpen() || fortune.isOpen()) return;
+    // 面板/观察/抽签/猜谜模式是模态的，那里不切视角
+    if (inspector.isOpen() || hud.isPanelOpen() || fortune.isOpen() || quiz.isOpen()) return;
     hud.setViewMode(player.toggleMode());
   } else if (event.code === 'KeyL') {
     event.preventDefault();
     readCurrentInterface();
   } else if (event.code === 'Escape') {
-    // Esc 在观察模式里回到介绍面板，在介绍面板/抽签里回到场景
+    // Esc 在观察模式里回到介绍面板，在介绍面板/抽签/猜谜里回到场景
     if (inspector.isOpen()) closeInspector();
+    else if (quiz.isOpen()) quiz.handleKey('Escape');
     else if (fortune.isOpen()) {
       reader.stop();
       fortune.handleKey('Escape');
@@ -306,11 +492,47 @@ function frame() {
   const dt = Math.min(clock.getDelta(), 0.05);
   elapsed += dt;
 
-  const blockInput = hud.isPanelOpen() || inspector.isOpen() || fortune.isOpen();
+  const blockInput = hud.isPanelOpen() || inspector.isOpen() || fortune.isOpen() || quiz.blocksInput();
   input.enabled = !blockInput;
+
+  // 答对后相机飞向展品
+  if (fly.active) {
+    fly.t += dt;
+    const k = Math.min(1, fly.t / fly.duration);
+    const eased = k < 0.5 ? 2 * k * k : 1 - ((-2 * k + 2) ** 2) / 2;
+    player.position.x = fly.from.x + (fly.to.x - fly.from.x) * eased;
+    player.position.z = fly.from.z + (fly.to.z - fly.from.z) * eased;
+    player.yaw = fly.from.yaw + shortestAngle(fly.from.yaw, fly.to.yaw) * eased;
+    player.velocity.x = 0;
+    player.velocity.z = 0;
+    if (k >= 1) {
+      fly.active = false;
+      const done = fly.onDone;
+      fly.onDone = null;
+      done?.();
+    }
+  }
 
   player.update(dt, camera, input, !blockInput);
   museum.update(dt, elapsed);
+
+  // 高亮光圈与灯光
+  if (highlight?.userData.active) {
+    const u = highlight.userData;
+    u.t += dt;
+    const life = 5;
+    const k = u.t / life;
+    if (k >= 1) {
+      u.active = false;
+      highlight.visible = false;
+      u.light.intensity = 0;
+    } else {
+      const pulse = 0.5 + 0.5 * Math.sin(u.t * 6);
+      highlight.scale.setScalar(1 + pulse * 0.18);
+      u.ring.material.opacity = (1 - k) * (0.45 + pulse * 0.5);
+      u.light.intensity = (1 - k) * (7 + pulse * 7);
+    }
+  }
 
   activeItem = blockInput ? null : findNearestInteractable();
   hud.setPrompt(activeItem);
@@ -334,4 +556,4 @@ function frame() {
 requestAnimationFrame(frame);
 
 // 方便在浏览器控制台里调试：window.museumApp.museum / .player / .audio ...
-window.museumApp = { scene, camera, renderer, museum, player, input, hud, inspector, fortune, audio, reader };
+window.museumApp = { scene, camera, renderer, museum, player, input, hud, inspector, fortune, quiz, audio, reader, thumbnail, puzzles };

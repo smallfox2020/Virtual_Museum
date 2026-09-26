@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
-import { ARTIFACTS, createArtifactObject, artifactStory } from './artifacts.js';
+import { ARTIFACTS, artifactStory } from './artifacts.js';
+import { createThumbnailer } from './thumbnails.js';
 
 /**
  * 序厅「摇签问古」抽签小游戏。
@@ -204,77 +205,7 @@ export function createFortune({ canvas, onInspect }) {
 
   /* ================= 展品缩略图 ================= */
 
-  const thumbCache = new Map();
-  let thumb = null;
-
-  /** 用一件临时画布把展品渲染成图片（按展品名缓存） */
-  function artifactImage(artifact) {
-    if (thumbCache.has(artifact.name)) return thumbCache.get(artifact.name);
-
-    if (!thumb) {
-      const thumbRenderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
-      thumbRenderer.setPixelRatio(1);
-      thumbRenderer.setSize(440, 440, false);
-      thumbRenderer.outputColorSpace = THREE.SRGBColorSpace;
-      thumbRenderer.toneMapping = THREE.ACESFilmicToneMapping;
-      thumbRenderer.toneMappingExposure = 1.12;
-
-      const thumbScene = new THREE.Scene();
-      const pmremThumb = new THREE.PMREMGenerator(thumbRenderer);
-      thumbScene.environment = pmremThumb.fromScene(new RoomEnvironment(), 0.04).texture;
-      thumbScene.environmentIntensity = 0.85;
-      pmremThumb.dispose();
-
-      thumbScene.add(new THREE.AmbientLight(0xffffff, 0.5));
-      const tKey = new THREE.DirectionalLight(0xfff3e2, 2.3);
-      tKey.position.set(3, 5, 4);
-      thumbScene.add(tKey);
-      const tRim = new THREE.DirectionalLight(0x9ecdff, 1.1);
-      tRim.position.set(-4, 2, -3);
-      thumbScene.add(tRim);
-
-      const stage = new THREE.Mesh(
-        new THREE.CylinderGeometry(1.35, 1.45, 0.06, 48),
-        new THREE.MeshStandardMaterial({ color: 0x2a2d36, roughness: 0.5, metalness: 0.3 }),
-      );
-      stage.position.y = -0.05;
-      thumbScene.add(stage);
-
-      const holder = new THREE.Group();
-      thumbScene.add(holder);
-
-      thumb = {
-        renderer: thumbRenderer,
-        scene: thumbScene,
-        holder,
-        stage,
-        camera: new THREE.PerspectiveCamera(34, 1, 0.05, 100),
-      };
-    }
-
-    thumb.holder.clear();
-    const { object } = createArtifactObject(artifact);
-    thumb.holder.add(object);
-
-    const box = new THREE.Box3().setFromObject(object);
-    const size = box.getSize(new THREE.Vector3());
-    const center = box.getCenter(new THREE.Vector3());
-    const scale = 2.0 / (Math.max(size.x, size.y, size.z) || 1);
-    object.scale.setScalar(scale);
-    object.position.set(-center.x * scale, -center.y * scale, -center.z * scale);
-
-    const halfHeight = (size.y * scale) / 2;
-    thumb.stage.position.y = -halfHeight - 0.05;
-    thumb.stage.scale.setScalar(Math.max(0.5, Math.min(1.4, Math.max(size.x, size.z) * scale)));
-
-    thumb.camera.position.set(0, 0.35, 3.5);
-    thumb.camera.lookAt(0, 0.05, 0);
-    thumb.renderer.render(thumb.scene, thumb.camera);
-
-    const url = thumb.renderer.domElement.toDataURL('image/png');
-    thumbCache.set(artifact.name, url);
-    return url;
-  }
+  const artifactImage = createThumbnailer();
 
   /* ================= 状态 ================= */
 
