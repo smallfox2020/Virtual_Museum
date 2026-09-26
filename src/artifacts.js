@@ -627,61 +627,144 @@ function shapeDrumStand() {
   return group;
 }
 
-/** 虎座鸟架鼓 */
+/** 虎座鸟架鼓：卧虎为座、凤鸟为架、鼓悬其中 */
 function shapeDrum() {
   const m = materials();
   const group = new THREE.Group();
+
   for (const side of [-1, 1]) {
-    group.add(mesh(new THREE.BoxGeometry(0.44, 0.12, 0.2), m.black, [side * 0.34, 0.06, 0]));
-    group.add(mesh(new THREE.BoxGeometry(0.12, 0.12, 0.14), m.red, [side * 0.56, 0.12, 0]));
-    for (const leg of [-0.14, 0.14]) {
-      group.add(mesh(new THREE.BoxGeometry(0.08, 0.06, 0.16), m.black, [side * 0.34 + leg, 0.03, 0]));
+    const bx = side * 0.42;
+    // 卧虎：身躯 + 四条短足 + 昂起的头 + 双耳 + 卷尾
+    group.add(mesh(new THREE.BoxGeometry(0.5, 0.14, 0.24), m.black, [bx, 0.1, 0]));
+    group.add(mesh(new THREE.BoxGeometry(0.5, 0.035, 0.26), m.red, [bx, 0.18, 0]));
+    for (const leg of [-0.18, -0.06, 0.12, 0.24]) {
+      group.add(mesh(new THREE.BoxGeometry(0.065, 0.11, 0.085), m.black, [bx + leg, 0.055, 0.07]));
+      group.add(mesh(new THREE.BoxGeometry(0.065, 0.11, 0.085), m.black, [bx + leg, 0.055, -0.07]));
     }
-    group.add(mesh(new THREE.ConeGeometry(0.13, 0.46, 20), m.red, [side * 0.34, 0.36, 0]));
-    group.add(mesh(new THREE.CylinderGeometry(0.035, 0.05, 0.34, 14), m.black, [side * 0.34, 0.72, 0], [0, 0, side * 0.25]));
-    group.add(mesh(new THREE.ConeGeometry(0.05, 0.16, 14), m.gold, [side * 0.4, 0.9, 0], [0, 0, side * 1.4]));
+    group.add(mesh(new THREE.BoxGeometry(0.16, 0.16, 0.15), m.black, [bx + side * 0.3, 0.24, 0]));
+    group.add(mesh(new THREE.ConeGeometry(0.032, 0.085, 6), m.red, [bx + side * 0.3, 0.33, 0.05]));
+    group.add(mesh(new THREE.ConeGeometry(0.032, 0.085, 6), m.red, [bx + side * 0.3, 0.33, -0.05]));
+    group.add(mesh(new THREE.CylinderGeometry(0.018, 0.018, 0.18, 8), m.red, [bx - side * 0.31, 0.2, 0], [0, 0, Math.PI / 2.4]));
+
+    // 凤鸟：长颈自虎背旋起，双翼张开，尾羽后拖
+    group.add(mesh(new THREE.CylinderGeometry(0.045, 0.062, 0.44, 12), m.red, [bx, 0.4, 0], [0, 0, side * 0.18]));
+    group.add(mesh(new THREE.BoxGeometry(0.16, 0.12, 0.12), m.red, [bx - side * 0.11, 0.62, 0]));
+    group.add(mesh(new THREE.ConeGeometry(0.028, 0.11, 6), m.gold, [bx - side * 0.2, 0.61, 0], [0, 0, side * 1.57]));
+    for (const z of [-1, 1]) {
+      group.add(mesh(new THREE.BoxGeometry(0.3, 0.032, 0.15), m.black, [bx + side * 0.05, 0.43, z * 0.11], [0, 0, side * 0.5]));
+    }
+    group.add(mesh(new THREE.BoxGeometry(0.33, 0.045, 0.1), m.black, [bx + side * 0.2, 0.3, 0], [0, 0, -side * 0.35]));
+    // 悬鼓的铜链
+    group.add(mesh(new THREE.CylinderGeometry(0.008, 0.008, 0.24, 6), m.gold, [bx - side * 0.2, 0.78, 0], [0, 0, side * 0.5]));
   }
-  group.add(mesh(new THREE.CylinderGeometry(0.24, 0.24, 0.34, 40), m.red, [0, 0.62, 0], [0, 0, Math.PI / 2]));
-  for (const end of [-0.17, 0.17]) {
-    group.add(mesh(new THREE.TorusGeometry(0.24, 0.018, 8, 40), m.gold, [end, 0.62, 0], [0, Math.PI / 2, 0]));
+
+  // 鼓：横卧，鼓身两道鎏金篍，鼓面一圈鼓钉
+  group.add(mesh(new THREE.CylinderGeometry(0.22, 0.22, 0.42, 32), m.red, [0, 0.72, 0], [0, 0, Math.PI / 2]));
+  for (const x of [-0.21, 0.21]) {
+    group.add(mesh(new THREE.CylinderGeometry(0.225, 0.225, 0.02, 32), m.wood, [x, 0.72, 0], [0, 0, Math.PI / 2]));
+    group.add(mesh(new THREE.TorusGeometry(0.223, 0.014, 8, 36), m.gold, [x * 0.55, 0.72, 0], [0, Math.PI / 2, 0]));
+    for (let i = 0; i < 24; i += 1) {
+      const a = (i / 24) * Math.PI * 2;
+      group.add(mesh(new THREE.SphereGeometry(0.012, 8, 6), m.gold, [x, 0.72 + Math.cos(a) * 0.185, Math.sin(a) * 0.185]));
+    }
   }
-  group.add(mesh(new THREE.BoxGeometry(0.86, 0.05, 0.05), m.black, [0, 0.98, 0]));
+  group.add(mesh(new THREE.TorusGeometry(0.221, 0.012, 8, 36), m.gold, [0, 0.72, 0], [0, Math.PI / 2, 0]));
+  group.add(mesh(new THREE.BoxGeometry(0.9, 0.05, 0.05), m.black, [0, 1.0, 0]));
   return group;
 }
 
-/** 越王勾践剑 */
+/** 越王勾践剑：菱形剑身起脊 + 兽面剑格 + 缠缑剑茎 + 同心圆剑首 */
 function shapeSword() {
   const m = materials();
   const group = new THREE.Group();
-  group.add(mesh(new THREE.BoxGeometry(0.075, 0.72, 0.02), m.steel, [0, 0.44, 0]));
-  group.add(mesh(new THREE.ConeGeometry(0.045, 0.16, 4), m.steel, [0, 0.88, 0], [0, Math.PI / 4, 0]));
-  group.add(mesh(new THREE.BoxGeometry(0.2, 0.05, 0.05), m.gold, [0, 0.08, 0]));
-  group.add(mesh(new THREE.BoxGeometry(0.05, 0.03, 0.06), m.celadon, [0, 0.08, 0]));
-  group.add(mesh(new THREE.CylinderGeometry(0.024, 0.024, 0.16, 16), m.black, [0, -0.02, 0]));
-  for (const y of [-0.06, 0.02]) {
-    group.add(mesh(new THREE.TorusGeometry(0.028, 0.008, 8, 18), m.gold, [0, y, 0], [Math.PI / 2, 0, 0]));
+  const FLAT = 0.34;   // 剑身的压扁系数：菱形截面压扁后两条侧棱就是刃口，上下两个尖即脊线
+
+  // 剑身：四棱锥台压扁。仪式用剑，剑身取 0.95 m，接近人肩到指尖的长度，
+  // 比原来 0.62 m 的“短匕”尺度更能读出长兵的气势。
+  const blade = mesh(new THREE.CylinderGeometry(0.014, 0.046, 0.95, 4), m.steel, [0, 0.61, 0]);
+  blade.scale.z = FLAT;
+  group.add(blade);
+  // 剑尖：继续收成一点，和剑身同截面，不会出现接缝
+  const tip = mesh(new THREE.CylinderGeometry(0.0015, 0.014, 0.17, 4), m.steel, [0, 1.17, 0]);
+  tip.scale.z = FLAT;
+  group.add(tip);
+
+  // 铭文：近格处一道深色嵌线，暗示「越王鸠浅自作用剑」那一行鸟虫书
+  group.add(mesh(new THREE.BoxGeometry(0.054, 0.088, 0.028), m.black, [0, 0.2, 0]));
+  for (const side of [-1, 1]) {
+    group.add(mesh(new THREE.BoxGeometry(0.004, 0.084, 0.006), m.gold, [side * 0.018, 0.2, 0.014]));
   }
-  group.add(mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.022, 26), m.gold, [0, -0.12, 0]));
+
+  // 剑格：两端外撇，做成兽面，正中嵌一块绿松石
+  group.add(mesh(new THREE.BoxGeometry(0.21, 0.055, 0.058), m.bronze, [0, 0.105, 0]));
+  for (const side of [-1, 1]) {
+    group.add(mesh(new THREE.CylinderGeometry(0.028, 0.036, 0.05, 10), m.bronze, [side * 0.088, 0.105, 0], [0, 0, side * 0.5]));
+    group.add(mesh(new THREE.SphereGeometry(0.011, 10, 8), m.gold, [side * 0.046, 0.105, 0.028]));
+  }
+  group.add(mesh(new THREE.BoxGeometry(0.05, 0.032, 0.066), m.celadon, [0, 0.105, 0]));
+
+  // 剑茎：圆柱 + 三道缠缑
+  group.add(mesh(new THREE.CylinderGeometry(0.023, 0.026, 0.17, 16), m.black, [0, 0.0, 0]));
+  for (const y of [-0.06, -0.008, 0.044]) {
+    group.add(mesh(new THREE.TorusGeometry(0.028, 0.007, 8, 18), m.gold, [0, y, 0], [Math.PI / 2, 0, 0]));
+  }
+
+  // 剑首：圆盘 + 三道同心圆（实物上有十一圈，这里取三圈就足以读到）
+  group.add(mesh(new THREE.CylinderGeometry(0.052, 0.052, 0.02, 28), m.bronze, [0, -0.1, 0]));
+  for (let i = 0; i < 3; i += 1) {
+    group.add(mesh(
+      new THREE.TorusGeometry(0.018 + i * 0.011, 0.0035, 6, 22), m.gold,
+      [0, -0.089, 0], [Math.PI / 2, 0, 0],
+    ));
+  }
   return group;
 }
 
-/** 彩绘漆木镇墓兽 */
+/** 彩绘漆木镇墓兽：鹿角、凸目、吐舌、前肢抱蛇 */
 function shapeBeast() {
   const m = materials();
   const group = new THREE.Group();
-  group.add(mesh(new THREE.BoxGeometry(0.34, 0.5, 0.28), m.black, [0, 0.25, 0]));
-  group.add(mesh(new THREE.BoxGeometry(0.36, 0.06, 0.3), m.red, [0, 0.52, 0]));
-  group.add(mesh(new THREE.BoxGeometry(0.26, 0.2, 0.22), m.black, [0, 0.62, 0.02]));
-  group.add(mesh(new THREE.BoxGeometry(0.1, 0.06, 0.06), m.red, [0, 0.6, 0.14]));
+
+  // 方座：下红上黑，楚漆器最常见的两层台
+  group.add(mesh(new THREE.BoxGeometry(0.42, 0.07, 0.36), m.red, [0, 0.035, 0]));
+  group.add(mesh(new THREE.BoxGeometry(0.46, 0.028, 0.4), m.black, [0, 0.084, 0]));
+
+  // 身躯：六棱柱，比方盒子更像整木雕出来的
+  const body = mesh(new THREE.CylinderGeometry(0.14, 0.185, 0.44, 6), m.black, [0, 0.32, 0]);
+  body.rotation.y = Math.PI / 6;
+  group.add(body);
+  group.add(mesh(new THREE.BoxGeometry(0.3, 0.085, 0.29), m.red, [0, 0.42, 0.008]));   // 胸前朱带
+  group.add(mesh(new THREE.BoxGeometry(0.27, 0.05, 0.26), m.red, [0, 0.24, 0.008]));   // 腹下朱带
+
+  // 前肢：向前屈出，爪间抱一条蛇
   for (const side of [-1, 1]) {
-    group.add(mesh(new THREE.BoxGeometry(0.05, 0.1, 0.05), m.gold, [side * 0.08, 0.68, 0.1]));
+    group.add(mesh(new THREE.BoxGeometry(0.085, 0.3, 0.1), m.red, [side * 0.135, 0.3, 0.11], [0.42, 0, 0]));
+    group.add(mesh(new THREE.BoxGeometry(0.1, 0.075, 0.15), m.black, [side * 0.135, 0.15, 0.25]));
+  }
+  const snake = mesh(new THREE.TorusGeometry(0.1, 0.016, 6, 20), m.red, [0, 0.145, 0.29], [Math.PI / 2, 0, 0]);
+  snake.scale.set(1, 1, 0.6);
+  group.add(snake);
+
+  // 头：方颅 + 凸目 + 吐舌 + 撩牙
+  group.add(mesh(new THREE.BoxGeometry(0.26, 0.22, 0.24), m.black, [0, 0.6, 0.03]));
+  group.add(mesh(new THREE.BoxGeometry(0.28, 0.045, 0.26), m.red, [0, 0.7, 0.03]));
+  for (const side of [-1, 1]) {
+    group.add(mesh(new THREE.SphereGeometry(0.045, 12, 10), m.gold, [side * 0.1, 0.63, 0.15]));
+    group.add(mesh(new THREE.ConeGeometry(0.022, 0.07, 8), m.wood, [side * 0.07, 0.52, 0.15], [Math.PI, 0, 0]));
+  }
+  group.add(mesh(new THREE.BoxGeometry(0.09, 0.05, 0.2), m.red, [0, 0.52, 0.19], [0.5, 0, 0]));
+
+  // 鹿角：每侧一主枝 + 三支分叉——镇墓兽最认得出的就是这对角
+  for (const side of [-1, 1]) {
+    group.add(mesh(new THREE.CylinderGeometry(0.016, 0.022, 0.34, 7), m.wood, [side * 0.09, 0.86, 0.0], [0.1, 0, side * 0.34]));
     for (let i = 0; i < 3; i += 1) {
-      group.add(
-        mesh(new THREE.CylinderGeometry(0.011, 0.015, 0.3, 6), m.wood, [side * 0.1, 0.86 + i * 0.02, 0], [side * 0.25, 0, side * (0.4 - i * 0.4)]),
-      );
+      group.add(mesh(
+        new THREE.CylinderGeometry(0.008, 0.013, 0.18, 6), m.wood,
+        [side * (0.15 + i * 0.06), 0.93 + i * 0.075, -0.02 + i * 0.03],
+        [0.2, 0, side * (0.75 + i * 0.25)],
+      ));
     }
   }
-  group.add(mesh(new THREE.BoxGeometry(0.36, 0.06, 0.3), m.red, [0, 0.03, 0]));
   return group;
 }
 
@@ -850,19 +933,34 @@ function shapeChunYu() {
   return group;
 }
 
-/** 铜戈与铜钺 */
+/** 铜戈与铜钺：戈分援、胡、内、穿；钺有厚刃与銎 */
 function shapeGe() {
   const m = materials();
   const group = new THREE.Group();
-  // 戈
-  group.add(mesh(new THREE.BoxGeometry(0.62, 0.11, 0.015), m.bronze, [-0.1, 0.62, 0]));
-  group.add(mesh(new THREE.ConeGeometry(0.09, 0.24, 3), m.bronze, [0.32, 0.62, 0], [0, 0, -Math.PI / 2]));
-  group.add(mesh(new THREE.BoxGeometry(0.16, 0.05, 0.015), m.bronze, [-0.44, 0.62, 0]));
-  group.add(mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.94, 12), m.wood, [-0.1, 0.45, 0.03], [0, 0, Math.PI / 2]));
-  // 钺
-  group.add(mesh(new THREE.CylinderGeometry(0.24, 0.24, 0.02, 4), m.patina, [0, 0.3, 0], [0, 0, Math.PI / 4]));
-  group.add(mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.52, 12), m.wood, [0, 0.3, 0.03], [0, 0, Math.PI / 2]));
-  group.add(mesh(new THREE.BoxGeometry(0.9, 0.07, 0.3), m.black, [0, 0.035, 0]));
+
+  // —— 戈：横置。援起脊、前锋收尖，胡下垂，内在后段，柲穿銎而过
+  const geY = 0.66;
+  const yuan = mesh(new THREE.CylinderGeometry(0.012, 0.03, 0.5, 4), m.bronze, [-0.02, geY, 0], [0, 0, Math.PI / 2]);
+  yuan.scale.z = 0.3;
+  group.add(yuan);
+  const front = mesh(new THREE.CylinderGeometry(0.001, 0.012, 0.14, 4), m.bronze, [0.3, geY, 0], [0, 0, Math.PI / 2]);
+  front.scale.z = 0.3;
+  group.add(front);
+  group.add(mesh(new THREE.BoxGeometry(0.1, 0.17, 0.016), m.bronze, [0.17, geY - 0.1, 0]));   // 胡
+  group.add(mesh(new THREE.BoxGeometry(0.2, 0.075, 0.016), m.bronze, [-0.36, geY, 0]));       // 内
+  group.add(mesh(new THREE.BoxGeometry(0.05, 0.02, 0.028), m.black, [-0.4, geY, 0]));          // 穿
+  group.add(mesh(new THREE.CylinderGeometry(0.027, 0.03, 1.05, 12), m.wood, [-0.06, 0.47, 0.03]));
+
+  // —— 钺：扁平宽刃 + 刃口加厚，中穿銎，柲自上而下穿过
+  const yueY = 0.34;
+  group.add(mesh(new THREE.BoxGeometry(0.46, 0.28, 0.022), m.patina, [0, yueY, 0]));
+  group.add(mesh(new THREE.BoxGeometry(0.3, 0.055, 0.028), m.patina, [0, yueY + 0.15, 0]));
+  group.add(mesh(new THREE.CylinderGeometry(0.046, 0.052, 0.16, 12), m.patina, [0, yueY, 0]));
+  for (const y of [yueY - 0.05, yueY + 0.05]) {
+    group.add(mesh(new THREE.TorusGeometry(0.05, 0.008, 6, 16), m.gold, [0, y, 0], [Math.PI / 2, 0, 0]));
+  }
+  group.add(mesh(new THREE.CylinderGeometry(0.026, 0.028, 0.62, 12), m.wood, [0, yueY - 0.12, 0]));
+  group.add(mesh(new THREE.BoxGeometry(0.92, 0.06, 0.32), m.black, [0, 0.03, 0]));
   return group;
 }
 
@@ -898,23 +996,47 @@ function shapeJadeBelt() {
   return group;
 }
 
-/** 玉璧与玉琮 */
+/** 玉璧与玉琮：璧立木座、双面谷纹；琮分三节带纹、中穿孔 */
 function shapeJadeSet() {
   const m = materials();
   const group = new THREE.Group();
-  // 玉璧
-  const bi = mesh(lathe([[0.12, 0], [0.3, 0], [0.3, 0.03], [0.12, 0.03], [0.12, 0]]), m.jade);
-  bi.material.side = THREE.DoubleSide;
-  bi.position.set(-0.18, 0.62, 0);
-  group.add(bi);
-  // 玉琮：四块方板围成方筒
-  for (let i = 0; i < 4; i += 1) {
-    const a = (i / 4) * Math.PI * 2;
-    group.add(mesh(new THREE.BoxGeometry(0.3, 0.42, 0.07), m.jade, [Math.cos(a) * 0.14, 0.21, Math.sin(a) * 0.14], [0, -a, 0]));
+
+  // 玉璧：一面一圈谷纹，内外缘起圆棱；立起来看得见正面
+  const bi = new THREE.Group();
+  const disc = mesh(lathe([[0.11, 0], [0.3, 0], [0.3, 0.04], [0.11, 0.04], [0.11, 0]]), m.jade);
+  disc.material.side = THREE.DoubleSide;
+  bi.add(disc);
+  for (const y of [0.005, 0.035]) {
+    bi.add(mesh(new THREE.TorusGeometry(0.14, 0.012, 6, 36), m.jade, [0, y, 0], [Math.PI / 2, 0, 0]));
+    bi.add(mesh(new THREE.TorusGeometry(0.255, 0.012, 6, 40), m.jade, [0, y, 0], [Math.PI / 2, 0, 0]));
+    for (let i = 0; i < 26; i += 1) {
+      const a = (i / 26) * Math.PI * 2;
+      bi.add(mesh(new THREE.SphereGeometry(0.013, 8, 6), m.jade, [Math.cos(a) * 0.196, y, Math.sin(a) * 0.196]));
+    }
   }
-  group.add(mesh(new THREE.BoxGeometry(0.34, 0.05, 0.34), m.jade, [0, 0.4, 0]));
-  group.add(mesh(new THREE.BoxGeometry(0.34, 0.05, 0.34), m.jade, [0, 0.03, 0]));
-  group.add(mesh(new THREE.BoxGeometry(0.6, 0.06, 0.34), m.black, [0, 0.03, 0]));
+  bi.position.set(-0.19, 0.58, 0);
+  bi.rotation.z = Math.PI / 2;   // 立起来
+  group.add(bi);
+  group.add(mesh(new THREE.BoxGeometry(0.1, 0.06, 0.42), m.black, [-0.19, 0.27, 0]));
+  group.add(mesh(new THREE.BoxGeometry(0.36, 0.05, 0.46), m.black, [-0.19, 0.03, 0]));
+
+  // 玉琮：方筒分三节，每节四角凸出节饰，中穿孔
+  const cx = 0.24;
+  for (let i = 0; i < 3; i += 1) {
+    const y = 0.12 + i * 0.15;
+    for (let k = 0; k < 4; k += 1) {
+      const a = (k / 4) * Math.PI * 2;
+      group.add(mesh(new THREE.BoxGeometry(0.3, 0.13, 0.06), m.jade, [cx + Math.cos(a) * 0.135, y, Math.sin(a) * 0.135], [0, -a, 0]));
+    }
+    for (let k = 0; k < 4; k += 1) {
+      const a = (k / 4) * Math.PI * 2 + Math.PI / 4;
+      group.add(mesh(new THREE.BoxGeometry(0.07, 0.13, 0.07), m.jade, [cx + Math.cos(a) * 0.19, y, Math.sin(a) * 0.19], [0, -a, 0]));
+    }
+  }
+  group.add(mesh(new THREE.BoxGeometry(0.46, 0.05, 0.46), m.jade, [cx, 0.56, 0]));
+  group.add(mesh(new THREE.BoxGeometry(0.42, 0.05, 0.42), m.jade, [cx, 0.035, 0]));
+  group.add(mesh(new THREE.CircleGeometry(0.1, 24), m.black, [cx, 0.588, 0], [-Math.PI / 2, 0, 0]));
+  group.add(mesh(new THREE.BoxGeometry(0.92, 0.05, 0.5), m.black, [0.06, 0.008, 0]));
   return group;
 }
 
