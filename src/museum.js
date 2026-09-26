@@ -1128,9 +1128,15 @@ function buildZenghouyiHall(struct) {
 /** 编钟厅：半圆剧场式的韵律柱（70°~110° 留空，不挡入口中轴） */
 function buildBellHall(struct) {
   const ceiling = zone('bells').height;
-  for (const [a0, a1] of [[25, 70], [110, 155]]) {
+  // 韵律柱撑开一点：半径 9→11.5、每弧 4 根→3 根、张角 45°→30°。
+  // 原来 7 m 弧长上排 4 根，间距只有 2.4 m，14 m 高的柱子在眼前挤成一道墙。
+  const colonnade = [
+    [24, 54],
+    [126, 156],
+  ];
+  for (const [a0, a1] of colonnade) {
     struct.arcColonnade({
-      cx: 0, cz: -29, radius: 9, count: 4,
+      cx: 0, cz: -29, radius: 11.5, count: 3,
       a0: THREE.MathUtils.degToRad(a0), a1: THREE.MathUtils.degToRad(a1),
       r: 0.55, topY: ceiling, material: struct.stone, rings: 2,
     });
@@ -1364,11 +1370,197 @@ function buildBellRack(scene, colliders, x, z, rotationY = 0) {
   colliders.push({ x, z, radius: 1.5 });
 }
 
-/** 编钟厅四角各放一具小编钟架，填补左右两角的空处 */
+/** 编钟厅四角：近门两角立鹿角立鹤像，远门两角摆小编钟架 */
 function buildBellHallCorners(scene, colliders) {
   for (const side of [1, -1]) {
-    buildBellRack(scene, colliders, side * 20.4, -20.8, side > 0 ? -0.5 : 0.5);
+    // 近门两角原来只有一具小钟架，比 14 m 高的厅子显得太空，改成立像
+    buildBronzeStatue(scene, colliders, side * 20.2, -21.2, side > 0 ? -0.7 : 0.7);
     buildBellRack(scene, colliders, side * 20.4, -37.2, side > 0 ? 0.5 : -0.5);
+  }
+}
+
+/**
+ * 青铜鹿角立鹤：曾侯乙墓出土的镇墓神鸟。鹤身、长颈、双翼，
+ * 头上生一对分叉鹿角 —— 鹤与鹿两种瑞兽合在一件器上，辨识度很高。
+ */
+function buildBronzeStatue(scene, colliders, x, z, rotationY = 0) {
+  const m = materials();
+  const group = new THREE.Group();
+  group.position.set(x, 0, z);
+  group.rotation.y = rotationY;
+
+  const add = (geo, mat, px, py, pz, rx = 0, ry = 0, rz = 0) => {
+    const piece = new THREE.Mesh(geo, mat);
+    piece.position.set(px, py, pz);
+    piece.rotation.set(rx, ry, rz);
+    piece.castShadow = true;
+    group.add(piece);
+    return piece;
+  };
+
+  // 铜座
+  add(new THREE.BoxGeometry(1.0, 0.26, 0.78), m.patina, 0, 0.13, 0);
+  add(new THREE.BoxGeometry(1.08, 0.06, 0.86), m.darkBronze, 0, 0.29, 0);
+
+  // 双足：旧铜锈色，从底座撑到鹤腹
+  for (const dx of [-0.17, 0.17]) {
+    add(new THREE.CylinderGeometry(0.045, 0.055, 1.05, 10), m.patina, dx, 0.85, 0);
+    add(new THREE.CylinderGeometry(0.08, 0.06, 0.06, 10), m.bronze, dx, 0.34, 0);   // 爪
+  }
+
+  // 鹤身：椭球，头尾方向压长
+  const body = add(new THREE.SphereGeometry(0.34, 20, 14), m.bronze, 0, 1.58, 0);
+  body.scale.set(1, 0.78, 1.3);
+  // 双翼：向后下方展开
+  for (const side of [-1, 1]) {
+    add(new THREE.BoxGeometry(0.1, 0.34, 0.62), m.patina, side * 0.3, 1.66, -0.16, 0.22, side * 0.28, side * 0.12);
+  }
+  // 尾羽
+  add(new THREE.BoxGeometry(0.34, 0.07, 0.46), m.patina, 0, 1.42, -0.42, -0.3, 0, 0);
+
+  // 长颈：自胸前旋起，两段衔接
+  add(new THREE.CylinderGeometry(0.075, 0.11, 0.72, 12), m.bronze, 0, 2.06, 0.16, 0.18, 0, 0);
+  add(new THREE.CylinderGeometry(0.06, 0.075, 0.5, 12), m.bronze, 0, 2.62, 0.1, -0.1, 0, 0);
+
+  // 鹤首 + 长喙 + 双睛
+  add(new THREE.SphereGeometry(0.13, 16, 12), m.bronze, 0, 2.9, 0.02);
+  add(new THREE.ConeGeometry(0.045, 0.3, 8), m.gold, 0, 2.88, 0.2, Math.PI / 2 - 0.12, 0, 0);
+  for (const side of [-1, 1]) {
+    add(new THREE.SphereGeometry(0.026, 10, 8), m.gold, side * 0.08, 2.94, 0.1);
+  }
+
+  // 鹿角：每侧一主枝 + 三分叉，鹤与鹿合体的关键
+  for (const side of [-1, 1]) {
+    add(new THREE.CylinderGeometry(0.022, 0.03, 0.42, 7), m.patina, side * 0.09, 3.16, -0.02, -0.12, 0, side * 0.42);
+    for (let i = 0; i < 3; i += 1) {
+      add(
+        new THREE.CylinderGeometry(0.011, 0.018, 0.24, 6), m.patina,
+        side * (0.2 + i * 0.075), 3.3 + i * 0.09, -0.03 + i * 0.04,
+        -0.1, 0, side * (0.85 + i * 0.28),
+      );
+    }
+  }
+
+  scene.add(group);
+  colliders.push({ x, z, radius: 1.0 });
+}
+
+/**
+ * 长廊上方悬挂的青铜吊盆（纯陈设，不做碰撞：盆口在 5.5 m，高于人头）。
+ * 四根吊链从天花垂下，铜盆口一圈旧铜锈唇，枝叶向外垂落。
+ */
+function buildHangingPlanter(scene, x, z) {
+  const m = materials();
+  const group = new THREE.Group();
+  group.position.set(x, 0, z);
+  const TOP = zone('corridor').height;   // 天花
+  const RIM = 5.5;                       // 盆口标高
+
+  for (const [dx, dz] of [[-0.19, -0.19], [0.19, -0.19], [0.19, 0.19], [-0.19, 0.19]]) {
+    const len = TOP - RIM - 0.06;
+    const chain = new THREE.Mesh(new THREE.CylinderGeometry(0.011, 0.011, len, 6), m.gold);
+    chain.position.set(dx, RIM + len / 2, dz);
+    group.add(chain);
+  }
+  const ring = new THREE.Mesh(new THREE.TorusGeometry(0.2, 0.014, 6, 22), m.gold);
+  ring.rotation.x = Math.PI / 2;
+  ring.position.y = RIM + 0.03;
+  group.add(ring);
+
+  const pot = new THREE.Mesh(
+    new THREE.LatheGeometry(
+      [[0.03, -0.36], [0.16, -0.34], [0.21, -0.25], [0.25, -0.1], [0.27, 0.02]]
+        .map(([r, y]) => new THREE.Vector2(r, y)),
+      26,
+    ),
+    m.bronze,
+  );
+  pot.position.y = RIM - 0.02;
+  pot.castShadow = true;
+  group.add(pot);
+  const lip = new THREE.Mesh(new THREE.TorusGeometry(0.27, 0.02, 8, 30), m.patina);
+  lip.rotation.x = Math.PI / 2;
+  lip.position.y = RIM;
+  group.add(lip);
+  const soil = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.25, 0.25, 0.04, 26),
+    new THREE.MeshStandardMaterial({ color: 0x3a2c22, roughness: 1 }),
+  );
+  soil.position.y = RIM - 0.05;
+  group.add(soil);
+
+  const leaf = new THREE.MeshStandardMaterial({ color: 0x4a6b3c, roughness: 0.85 });
+  for (let i = 0; i < 10; i += 1) {
+    const a = (i / 10) * Math.PI * 2;
+    const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.01, 0.015, 0.5, 6), leaf);
+    stem.position.set(Math.cos(a) * 0.2, RIM + 0.1, Math.sin(a) * 0.2);
+    stem.rotation.set(Math.sin(a) * 0.85, 0, -Math.cos(a) * 0.85);
+    group.add(stem);
+    const tuft = new THREE.Mesh(new THREE.IcosahedronGeometry(0.11 + (i % 3) * 0.02, 0), leaf);
+    tuft.position.set(Math.cos(a) * 0.42, RIM + 0.3, Math.sin(a) * 0.42);
+    tuft.castShadow = true;
+    group.add(tuft);
+  }
+  scene.add(group);
+}
+
+/** 长廊：两侧各 5 只吊盆，避开两个门洞（ z 的 ±6.9~±12.1 ） */
+function buildCorridorPlanters(scene) {
+  for (const side of [1, -1]) {
+    for (const z of [-14, -8, 0, 8, 14]) {
+      buildHangingPlanter(scene, side * 3.2, z);
+    }
+  }
+}
+
+/** 展厅吊牌：双面印厅名，两根吊杆挂到天花 */
+function buildHallSign(scene, name, sub, x, z, ceilingY, rotationY = 0) {
+  const group = new THREE.Group();
+  const w = 2.0;
+  const h = 0.72;
+  const centerY = 5.0;
+  group.position.set(x, centerY, z);
+  group.rotation.y = rotationY;
+
+  const texture = tex.makeSignTexture(name, sub);
+  for (const side of [1, -1]) {
+    const plate = new THREE.Mesh(
+      new THREE.PlaneGeometry(w, h),
+      new THREE.MeshStandardMaterial({ map: texture, roughness: 0.62, emissive: 0x1a1712, emissiveIntensity: 0.5 }),
+    );
+    plate.position.z = side * 0.045;
+    plate.rotation.y = side > 0 ? 0 : Math.PI;
+    group.add(plate);
+  }
+  const frame = new THREE.Mesh(
+    new THREE.BoxGeometry(w + 0.16, h + 0.16, 0.08),
+    new THREE.MeshStandardMaterial({ color: 0x4a3a2a, roughness: 0.6 }),
+  );
+  group.add(frame);
+
+  const rodLen = Math.max(0.3, ceilingY - centerY - h / 2);
+  const rodMat = new THREE.MeshStandardMaterial({ color: 0x3a2c22, metalness: 0.5, roughness: 0.5 });
+  for (const dx of [-w / 3, w / 3]) {
+    const rod = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.018, rodLen, 6), rodMat);
+    rod.position.set(dx, h / 2 + rodLen / 2, 0);
+    group.add(rod);
+  }
+  scene.add(group);
+}
+
+/** 六个展厅各挂一块吊牌，厅名与副题直接取 ZONES */
+function buildHallSigns(scene) {
+  const spots = [
+    ['entrance', 0, 21, 0],
+    ['bronze', 8.5, 9.5, Math.PI / 2],
+    ['ceramic', 8.5, -9.5, Math.PI / 2],
+    ['zenghouyi', -8.5, 9.5, Math.PI / 2],
+    ['chu', -8.5, -9.5, Math.PI / 2],
+    ['bells', 0, -21, 0],
+  ];
+  for (const [id, x, z, rotationY] of spots) {
+    const info = zone(id);
+    buildHallSign(scene, info.name, info.sub, x, z, info.height, rotationY);
   }
 }
 
@@ -1572,6 +1764,8 @@ export function createMuseum(scene) {
   buildFunnelCalligraphy(scene, interactables);
   buildFunnelStories(scene, interactables);
   buildBellHallCorners(scene, colliders);
+  buildCorridorPlanters(scene);
+  buildHallSigns(scene);
   buildScrolls(scene, interactables);
   buildFortuneStand(scene, colliders, interactables);
 
