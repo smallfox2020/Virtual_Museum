@@ -6,8 +6,8 @@ import { FBXLoader } from 'three/addons/loaders/FBXLoader.js';
 /* ================================================================== */
 
 export const CHARACTER_CONFIG = {
-  /** 目标身高（米）——展厅尺度以米为单位，人物按 1.78 m 归一化 */
-  targetHeight: 1.78,
+  /** 目标身高（米）——展厅尺度以米为单位 */
+  targetHeight: 1.98,
 
   /**
    * 贴图分辨率上限。内嵌贴图原图是 2048×2048 × 16 张，
@@ -16,7 +16,8 @@ export const CHARACTER_CONFIG = {
    */
   textureSize: { color: 1024, normal: 1024, data: 512 },
 
-  /** T 形姿势 → 双臂自然下垂（CPU 一次性重姿态，运行时不花钱） */
+  /** T 形姿势 → 双臂自然下垂（CPU 一次性重姿态，运行时不花钱）
+   *  注意：带骨骼蒙皮的模型会自动跳过——T 形是绑定姿势，改了会和蒙皮打架 */
   reposeArms: true,
   armDropRadians: 1.43, // ≈ 82°
   shoulderRatio: 0.14, // 肩关节 x / 身高
@@ -187,6 +188,31 @@ function groupImagesByName(images) {
 /* 三、重建 PBR 材质                                                    */
 /* ================================================================== */
 
+/** 角色模型的 ArrayBuffer 缓存：用于让下载与展厅搭建并行 */
+const bufferCache = new Map();
+
+/** 提前开始下载角色模型（在 main.js 里于 createMuseum 之前调用） */
+export function preloadCharacter(url) {
+  if (!url || bufferCache.has(url)) return;
+  bufferCache.set(
+    url,
+    fetch(url)
+      .then((response) => (response.ok ? response.arrayBuffer() : null))
+      .catch(() => null),
+  );
+}
+
+async function fetchBuffer(url) {
+  const cached = bufferCache.get(url);
+  if (cached) {
+    const buffer = await cached;
+    if (buffer) return buffer;
+  }
+  const response = await fetch(url);
+  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+  return response.arrayBuffer();
+}
+
 function blobToImage(bytes, ext) {
   const mime = ext === 'png' ? 'image/png' : 'image/jpeg';
   const url = URL.createObjectURL(new Blob([bytes], { type: mime }));
@@ -204,19 +230,57 @@ function blobToImage(bytes, ext) {
   });
 }
 
-async function makeTexture(image, maxSize, srgb) {
-  let source = image;
-  const limit = Math.max(image.width, image.height);
-  if (limit > maxSize) {
-    const scale = maxSize / limit;
-    const canvas = document.createElement('canvas');
-    canvas.width = Math.max(1, Math.round(image.width * scale));
-    canvas.height = Math.max(1, Math.round(image.height * scale));
-    const ctx = canvas.getContext('2d');
-    ctx.imageSmoothingQuality = 'high';
-    ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
-    source = canvas;
+/**
+ * 把内嵌图解成可直接上传的 canvas。
+ *
+ * 优先用 createImageBitmap 的 resize 选项：解码在 worker 线程完成，
+ * 而且直接解到目标尺寸（2048² 的 PNG 只解成 1024²，像素工作量少 4 倍），
+ * 比“整张解码再 drawImage 缩小”快很多。
+ * 最终还是落在 canvas 上作载体——canvas 源的 flipY 行为确定，
+ * 而 ImageBitmap 在不同平台对 UNPACK_FLIP_Y_WEBGL 的支持不一致，直接用会把贴图上下翻转。
+ */
+async function decodeToCanvas(bytes, ext, maxSize) {
+  const mime = ext === 'png' ? 'image/png' : 'image/jpeg';
+  const blob = new Blob([bytes], { type: mime });
+
+  if (typeof createImageBitmap === 'function') {
+    try {
+      const probe = await createImageBitmap(blob);
+      const limit = Math.max(probe.width, probe.height);
+      let bitmap = probe;
+      if (limit > maxSize) {
+        const scale = maxSize / limit;
+        bitmap = await createImageBitmap(blob, {
+          resizeWidth: Math.max(1, Math.round(probe.width * scale)),
+          resizeHeight: Math.max(1, Math.round(probe.height * scale)),
+          resizeQuality: 'high',
+        });
+        probe.close?.();
+      }
+      const canvas = document.createElement('canvas');
+      canvas.width = bitmap.width;
+      canvas.height = bitmap.height;
+      canvas.getContext('2d').drawImage(bitmap, 0, 0);
+      bitmap.close?.();
+      return canvas;
+    } catch (error) {
+      // 落到下面的 Image 路径
+    }
   }
+
+  const image = await blobToImage(bytes, ext);
+  if (Math.max(image.width, image.height) <= maxSize) return image;
+  const scale = maxSize / Math.max(image.width, image.height);
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.max(1, Math.round(image.width * scale));
+  canvas.height = Math.max(1, Math.round(image.height * scale));
+  const ctx = canvas.getContext('2d');
+  ctx.imageSmoothingQuality = 'high';
+  ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
+  return canvas;
+}
+
+async function makeTexture(source, srgb) {
   const texture = new THREE.CanvasTexture(source);
   texture.colorSpace = srgb ? THREE.SRGBColorSpace : THREE.NoColorSpace;
   texture.anisotropy = 4;
@@ -233,24 +297,34 @@ async function buildMaterialTextures(images, config) {
   const byMaterial = new Map();
   const report = { materials: 0, textures: 0 };
 
-  for (const [materialName, items] of grouped) {
-    const set = {};
-    for (const { entry, channel } of items) {
-      const info = CHANNEL_SLOTS[channel];
-      const maxSize = config.textureSize[info.size] ?? 1024;
-      try {
-        const image = await blobToImage(entry.bytes, entry.ext);
-        set[info.slot] = await makeTexture(image, maxSize, info.srgb);
-        report.textures += 1;
-      } catch (error) {
-        console.warn(`[character] 贴图 ${channel} 处理失败：${error.message}`);
+  // 各材质的贴图并行解码：内嵌图是 2048² 的 PNG，串行解码会成为加载瓶颈
+  await Promise.all(
+    [...grouped.entries()].map(async ([materialName, items]) => {
+      const entries = await Promise.all(
+        items.map(async ({ entry, channel }) => {
+          const info = CHANNEL_SLOTS[channel];
+          const maxSize = config.textureSize[info.size] ?? 1024;
+          try {
+            const canvas = await decodeToCanvas(entry.bytes, entry.ext, maxSize);
+            return [info.slot, await makeTexture(canvas, info.srgb)];
+          } catch (error) {
+            console.warn(`[character] 贴图 ${channel} 处理失败：${error.message}`);
+            return null;
+          }
+        }),
+      );
+      const set = {};
+      for (const item of entries) {
+        if (item) set[item[0]] = item[1];
       }
-    }
-    if (Object.keys(set).length) {
-      byMaterial.set(materialName, set);
-      report.materials += 1;
-    }
-  }
+      if (Object.keys(set).length) {
+        byMaterial.set(materialName, set);
+        report.materials += 1;
+        report.textures += Object.keys(set).length;
+      }
+    }),
+  );
+
   return { byMaterial, report };
 }
 
@@ -471,6 +545,110 @@ function normalize(root, targetHeight) {
   return { scale, size };
 }
 
+/** 默认的动画清单：文件名决定槽位（Mixamo 把所有片段都叫 mixamo.com，只能靠文件名区分） */
+export const DEFAULT_ANIMATIONS = [
+  { slot: 'idle', url: './animations/anim_idle.fbx' },
+  { slot: 'walk', url: './animations/anim_walk.fbx' },
+  { slot: 'run', url: './animations/anim_run.fbx' },
+  { slot: 'jump', url: './animations/anim_jump.fbx' },
+];
+
+/** 统一的 FBX 解析：屏蔽 FBXLoader 关于未知贴图通道 / 未知材质的刷屏警告 */
+function parseFBX(buffer) {
+  const originalWarn = console.warn;
+  const suppressed = [];
+  console.warn = (...args) => {
+    const first = String(args[0] ?? '');
+    if (
+      first.includes('FBXLoader') &&
+      (first.includes('is not supported in three.js') || first.includes('unknown material type'))
+    ) {
+      suppressed.push(first);
+      return;
+    }
+    originalWarn.apply(console, args);
+  };
+  try {
+    return new FBXLoader().parse(buffer, '');
+  } finally {
+    console.warn = originalWarn;
+  }
+}
+
+/** 释放不再需要的子树（动画文件里往往重复带了一份完整模型） */
+function disposeTree(root) {
+  root.traverse((node) => {
+    if (!node.isMesh && !node.isSkinnedMesh) return;
+    node.geometry?.dispose?.();
+    const materials = Array.isArray(node.material) ? node.material : [node.material];
+    for (const material of materials) {
+      if (!material) continue;
+      for (const key of ['map', 'normalMap', 'metalnessMap', 'roughnessMap', 'emissiveMap', 'aoMap', 'alphaMap']) {
+        material[key]?.dispose?.();
+      }
+      material.dispose?.();
+    }
+  });
+}
+
+/** 模型是否自带骨骼 */
+export function hasSkeleton(root) {
+  let found = false;
+  root.traverse((node) => {
+    if (node.isBone || node.isSkinnedMesh) found = true;
+  });
+  return found;
+}
+
+/**
+ * 从一个 FBX 里抽出可用的动画片段。
+ *
+ * Mixamo 导出的片段名统一是 "mixamo.com"，而且同一个文件里还带一个空的 "Take 001"，
+ * 所以这里取「时长最长的那个」并按调用方给的槽位重命名（idle / walk / run / jump）。
+ */
+export function pickLongestClip(animations) {
+  if (!animations?.length) return null;
+  return animations.reduce((best, clip) => (clip.duration > (best?.duration ?? 0) ? clip : best), null);
+}
+
+/**
+ * 加载外部动画 FBX，只取出动画、丢掉里面重复的模型几何。
+ *
+ * @param {Array<{slot: string, url: string}>} files
+ * @returns {Promise<Array<THREE.AnimationClip>>} 片段已按槽位重命名
+ */
+export async function loadAnimationClips(files = DEFAULT_ANIMATIONS) {
+  const clips = [];
+  const report = [];
+
+  for (const { slot, url } of files) {
+    try {
+      const response = await fetch(url);
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const buffer = await response.arrayBuffer();
+      const source = parseFBX(buffer);
+
+      const clip = pickLongestClip(source.animations);
+      if (clip) {
+        const cloned = clip.clone();
+        cloned.name = slot;
+        clips.push(cloned);
+        report.push(`${slot} ← ${url.split('/').pop()}（${clip.duration.toFixed(2)}s，${clip.tracks.length} 轨道）`);
+      } else {
+        report.push(`${slot} ← ${url.split('/').pop()}（没有动画片段，已跳过）`);
+      }
+
+      // 动画面里那份重复的模型不要留着占显存
+      disposeTree(source);
+    } catch (error) {
+      report.push(`${slot} ← ${url} 加载失败：${error.message}`);
+    }
+  }
+
+  console.log('[character] 动画片段：\n  ' + report.join('\n  '));
+  return clips;
+}
+
 /* ================================================================== */
 /* 六、对外接口                                                        */
 /* ================================================================== */
@@ -484,40 +662,42 @@ function normalize(root, targetHeight) {
  * 自己从二进制里把图片抠出来，按「材质名 + 通道」重建材质。
  */
 export async function loadCharacter(url, options = {}) {
+  const started = performance.now();
   const config = { ...CHARACTER_CONFIG, ...options, ...(options.textureSize ? {} : {}) };
   if (options.textureSize) config.textureSize = { ...CHARACTER_CONFIG.textureSize, ...options.textureSize };
 
-  const response = await fetch(url);
-  if (!response.ok) throw new Error(`角色模型 ${url} 加载失败：HTTP ${response.status}`);
-  const buffer = await response.arrayBuffer();
+  const tFetch0 = performance.now();
+  const buffer = await fetchBuffer(url);
+  const tFetch1 = performance.now();
 
   // 1) 先抠图（要用原始 buffer）
   const images = extractEmbeddedImages(buffer);
+  const tExtract = performance.now();
 
-  // 2) 解析几何与材质；期间屏蔽 FBXLoader 关于未知通道的刷屏警告
-  const originalWarn = console.warn;
+  // 2) 解析几何与材质（警告屏蔽在 parseFBX 里）
+  const object = parseFBX(buffer);
+  const tParse = performance.now();
   const suppressed = [];
-  console.warn = (...args) => {
-    const first = String(args[0] ?? '');
-    if (first.includes('FBXLoader') && (first.includes('is not supported in three.js') || first.includes('unknown material type'))) {
-      suppressed.push(first.replace('%s', '').trim());
-      return;
-    }
-    originalWarn.apply(console, args);
-  };
-  let object;
-  try {
-    object = new FBXLoader().parse(buffer, '');
-  } finally {
-    console.warn = originalWarn;
-  }
 
-  // 3) T 形姿势 → 手臂下垂
-  const repose = config.reposeArms ? reposeArms(object, config) : { skipped: true };
+  // 3) 带骨骼的模型不能做程序化重姿态：T 形姿势就是绑定姿势
+  const rigged = hasSkeleton(object);
+  const repose = config.reposeArms && !rigged ? reposeArms(object, config) : { skipped: true };
+  if (rigged && config.reposeArms) {
+    console.log('[character] 检测到骨骼与蒙皮，已自动跳过「手臂下垂」重姿态（T 形姿势是绑定姿势）');
+  }
 
   // 4) 用抠出来的贴图重建 PBR 材质
   const { byMaterial, report } = await buildMaterialTextures(images, config);
+  const tTextures = performance.now();
   const upgraded = upgradeMaterials(object, byMaterial);
+
+  // 蒙皮网格的包围体不随骨骼形变更新，容易被错误剔除，关掉视锥剔除
+  object.traverse((node) => {
+    if (node.isSkinnedMesh) {
+      node.frustumCulled = false;
+      node.castShadow = true;
+    }
+  });
 
   // 5) 朝向探测 + 归一化
   const facing = detectFacing(object);
@@ -535,20 +715,31 @@ export async function loadCharacter(url, options = {}) {
     facing: facing.facing,
     eyeZ: facing.eyeZ === null ? null : +facing.eyeZ.toFixed(3),
     clips: clips.map((clip) => clip.name),
+    rigged,
     armed: !repose.skipped,
     suppressedWarnings: suppressed.length,
   };
 
+  const timing = {
+    下载: Math.round(tFetch1 - tFetch0),
+    抠图: Math.round(tExtract - tFetch1),
+    解析: Math.round(tParse - tExtract),
+    贴图解码: Math.round(tTextures - tParse),
+    合计: Math.round(tTextures - tFetch0),
+  };
+
   console.log(
-    `[character] ${url}\n` +
+    `[character] ${url}（合计 ${timing.合计} ms：下载 ${timing.下载}｜抠图 ${timing.抠图}｜解析 ${timing.解析}｜贴图解码 ${timing.贴图解码}）
+` +
       `  顶点 ${stats.vertices}｜网格 ${stats.meshes}｜内嵌贴图 ${stats.images} 张 → 材质 ${stats.textures} 张贴图 / ${stats.materials} 个材质\n` +
       `  身高 ${stats.height} m｜朝向 ${stats.facing}（眼睛 z=${stats.eyeZ}）｜` +
-      `${stats.armed ? `手臂下垂已应用（移动 ${repose.moved} 个顶点）` : '手臂未重姿态'}\n` +
-      `  骨骼动画：${stats.clips.length ? stats.clips.join(', ') : '无（该模型没有骨骼与动画曲线）'}` +
+      `${stats.rigged ? `骨骼蒙皮 ✓（自带 ${stats.clips.length} 个片段）` : '无骨骼（静态网格）'}` +
+      `${stats.armed ? `｜手臂重姿态已应用（移动 ${repose.moved} 个顶点）` : ''}\n` +
+      `  骨骼动画：${stats.clips.length ? stats.clips.join(', ') : '无'}` +
       (suppressed.length ? `\n  （已屏蔽 FBXLoader 的 ${suppressed.length} 条未知通道警告）` : ''),
   );
 
-  return { object, clips, stats, images };
+  return { object, clips, stats, images, timing };
 }
 
 function countMeshes(root) {
@@ -565,6 +756,145 @@ function countVertices(root) {
     if (node.isMesh && node.geometry?.attributes?.position) n += node.geometry.attributes.position.count;
   });
   return n;
+}
+
+/**
+ * 估算动画片段自身的「地面速度」（米/秒）。
+ *
+ * 原理：一个循环内一只脚沿前进方向的前后行程 ≈ 步长，而一个循环走两步。
+ * 有了这个速度，就能用「实际移动速度 ÷ 自然速度」当播放倍速，脚步不会打滑。
+ *
+ * 两个容易搞错的点：
+ *   ① 脚的位置要换算到世界单位（模型已被归一化缩放过）；
+ *   ② 要投影到「角色自己的前进轴」而不是世界 Z——否则角色转头后测量就不准。
+ */
+export function measureClipSpeed(clip, rig) {
+  const samples = 32;
+  let foot = null;
+  let hips = null;
+  rig.traverse((node) => {
+    if (!foot && /leftfoot|left_foot|foot_l|leftankle/i.test(node.name)) foot = node;
+    if (!hips && /hips|pelvis/i.test(node.name)) hips = node;
+  });
+  if (!foot || !hips || !clip.duration) return null;
+
+  const mixer = new THREE.AnimationMixer(rig);
+  const action = mixer.clipAction(clip);
+  action.play();
+
+  const footPos = new THREE.Vector3();
+  const hipsPos = new THREE.Vector3();
+  const delta = new THREE.Vector3();
+  const forward = new THREE.Vector3();
+  const quaternion = new THREE.Quaternion();
+  let minAlong = Infinity;
+  let maxAlong = -Infinity;
+  let minUp = Infinity;
+  let maxUp = -Infinity;
+
+  for (let i = 0; i <= samples; i += 1) {
+    mixer.setTime((clip.duration * i) / samples);
+    rig.updateMatrixWorld(true);
+    foot.getWorldPosition(footPos);
+    hips.getWorldPosition(hipsPos);
+
+    // 模型局部 +Z 是面朝方向（已由 detectFacing 验证）
+    rig.getWorldQuaternion(quaternion);
+    forward.set(0, 0, 1).applyQuaternion(quaternion);
+    delta.copy(footPos).sub(hipsPos);
+
+    const along = delta.dot(forward);
+    minAlong = Math.min(minAlong, along);
+    maxAlong = Math.max(maxAlong, along);
+    minUp = Math.min(minUp, delta.y);
+    maxUp = Math.max(maxUp, delta.y);
+  }
+
+  action.stop();
+  mixer.setTime(0);
+
+  const step = maxAlong - minAlong;
+  return {
+    step: +step.toFixed(3),
+    lift: +(maxUp - minUp).toFixed(3),
+    speed: +((step * 2) / clip.duration).toFixed(3),
+  };
+}
+
+/**
+ * 标定跳跃片段：量出「离地起止时刻」，用来把动画的落地瞬间和物理落地对齐。
+ *
+ * 判别方法：看脚的高度曲线。脚回到站姿高度的那个时刻就是 contactTime；
+ * 如果片段一开始脚就已经悬在空中（比如 Mixamo 的 Landing 动画），
+ * 那它是「下落→落地」片段而不是完整的跳跃，代码需要区别对待。
+ */
+export function measureJumpClip(clip, rig) {
+  if (!clip || !clip.duration) return null;
+  let foot = null;
+  rig.traverse((node) => {
+    if (!foot && /leftfoot|left_foot|foot_l|leftankle/i.test(node.name)) foot = node;
+  });
+  if (!foot) return null;
+
+  const samples = 60;
+  const mixer = new THREE.AnimationMixer(rig);
+  const action = mixer.clipAction(clip);
+  action.play();
+
+  const heights = [];
+  const position = new THREE.Vector3();
+  for (let i = 0; i <= samples; i += 1) {
+    mixer.update(clip.duration / samples);
+    rig.updateMatrixWorld(true);
+    heights.push(foot.getWorldPosition(position).y);
+  }
+  action.stop();
+  mixer.setTime(0);
+
+  const ground = Math.min(...heights);
+  const peak = Math.max(...heights);
+  const lift = peak - ground;
+  if (lift < 0.05) return null; // 脚基本没离地，不是跳跃片段
+
+  const threshold = ground + lift * 0.25;
+  const toTime = (index) => +((clip.duration * index) / samples).toFixed(3);
+  const airborneStartIndex = heights.findIndex((y) => y > threshold);
+  let contactIndex = samples;
+  for (let i = 1; i <= samples; i += 1) {
+    if (heights[i - 1] > threshold && heights[i] <= threshold) {
+      contactIndex = i;
+      break;
+    }
+  }
+
+  return {
+    duration: +clip.duration.toFixed(3),
+    ground: +ground.toFixed(3),
+    peak: +peak.toFixed(3),
+    lift: +lift.toFixed(3),
+    airborneStart: toTime(Math.max(airborneStartIndex, 0)),
+    contactTime: toTime(contactIndex),
+    startsAirborne: airborneStartIndex <= 1,
+  };
+}
+
+/** 对一批片段做速度标定，返回每个槽位的自然速度（m/s）与详情 */
+export function calibrateClipSpeeds(clips, rig) {
+  const speeds = {};
+  const details = {};
+  for (const clip of clips) {
+    if (!clip || clip.duration < 0.1) continue;
+    try {
+      const measured = measureClipSpeed(clip, rig);
+      if (measured && measured.speed > 0.05) {
+        speeds[clip.name] = measured.speed;
+        details[clip.name] = measured;
+      }
+    } catch (error) {
+      // 标定失败不影响播放，调用方会回退到默认倍速
+    }
+  }
+  return { speeds, details };
 }
 
 /** 按名字挑动画片段（walk / run / jump / idle） */

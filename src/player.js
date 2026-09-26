@@ -1,23 +1,43 @@
 import * as THREE from 'three';
-import { loadCharacter, pickClips, CHARACTER_CONFIG } from './character.js';
+import { loadCharacter, loadAnimationClips, calibrateClipSpeeds, measureJumpClip, pickClips, CHARACTER_CONFIG, DEFAULT_ANIMATIONS } from './character.js';
 
 /**
  * 外部角色模型（相对 index.html）。
- * 这是一个带内嵌 PBR 贴图的 FBX：几何与贴图都会被加载，
- * 但它本身没有骨骼与动画曲线，走跑跳由程序化整体律动代替；
- * 若换成带骨骼动画的 FBX，会自动改用 AnimationMixer 播放其中匹配的片段。
+ *
+ * 这是 Mixamo 绑定过的版本：带骨骼与蒙皮（65 根 mixamorig 骨骼），
+ * 因此 T 形姿势重姿态会自动跳过（T 形就是绑定姿势）。
+ * 走 / 跑 / 跳 / 待机 由 DEFAULT_ANIMATIONS 里的动画 FBX 提供，
+ * 它们与角色是同一套骨架，按骨骼名直接绑定，不需要重定向。
  * 传 null 则一直用程序化人物。
  */
-const CHARACTER_URL = './Human.fbx';
+export const CHARACTER_URL = './animations/HumanRigged.fbx';
 
-const EYE_HEIGHT = 1.5;
-// 第一人称的镜头高度，对齐头部球体（y=1.72）的眼位
-const FIRST_PERSON_EYE_HEIGHT = 1.68;
-const CAMERA_DISTANCE = 4.8;
+/**
+ * 角色身高（米）。与 character.js 的 CHARACTER_CONFIG.targetHeight 保持一致，
+ * 镜头高度由它推导，改这一个数就能整体调高/调矮。
+ * 当前 1.98 m（比模型原始归一值 1.78 m 高 0.2）。
+ */
+const CHARACTER_HEIGHT = 1.98;
+/** 第三人称看向的高度（头部附近） */
+const EYE_HEIGHT = CHARACTER_HEIGHT * 0.84;
+/** 第一人称的眼位（模型的眼睛在身高 92% 处） */
+const FIRST_PERSON_EYE_HEIGHT = CHARACTER_HEIGHT * 0.93;
+// 房间放大到 48 × 80 m 后，4.8 m 的跟随距离会让人物显得很小，拉近到 3.4 m
+const CAMERA_DISTANCE = 3.4;
 const GRAVITY = 22;
-const JUMP_SPEED = 7.4;
-const WALK_SPEED = 3.4;
-const RUN_SPEED = 6.4;
+/**
+ * 跳跃初速。物理滞空时间 = 2 × JUMP_SPEED / GRAVITY。
+ * 跳跃动画只在「滞空」这段时间里放完离地→落地，所以两者必须对齐（见 setupJumpAction）。
+ * 当前值：跳高 ≈ 6.6² / (2 × 22) ≈ 0.99 m，滞空 ≈ 0.6 s。
+ */
+const JUMP_SPEED = 6.6;
+/**
+ * 移动速度。这两个值需要和动画的自然速度量级匹配，否则脚底会打滑。
+ * 实际播放倍速会在运行时用「当前速度 ÷ 动画自然速度」自动标定（见 calibrateClipSpeeds）。
+ * 实测动画自然速度：走路 ≈ 1.65 m/s、跑步 ≈ 2.43 m/s，对应下面的倍速约 1.15× / 1.60×。
+ */
+const WALK_SPEED = 1.9;
+const RUN_SPEED = 3.9;
 
 // 俯仰角限制：第三人称不能压太低（镜头会钻到地板下），第一人称则可以抬头看穹顶
 const PITCH_LIMITS = {
@@ -129,7 +149,7 @@ function buildCharacter() {
 }
 
 export class Player {
-  constructor({ scene, room, colliders, spawn, characterUrl = CHARACTER_URL }) {
+  constructor({ scene, room, colliders, spawn, characterUrl = CHARACTER_URL, animationFiles = DEFAULT_ANIMATIONS }) {
     this.room = room;
     this.colliders = colliders;
     this.radius = 0.42;
@@ -165,6 +185,7 @@ export class Player {
     scene.add(this.root);
 
     this.characterUrl = characterUrl;
+    this.animationFiles = animationFiles;
     if (characterUrl) this.loadExternalCharacter(characterUrl);
 
     this.cameraPosition = new THREE.Vector3();
@@ -268,10 +289,20 @@ export class Player {
    * 异步换上外部 FBX 角色。
    * 加载期间保持程序化人物可见，成功后无缝替换；失败则继续用程序化人物，不影响漫游。
    */
+  /**
+   * 异步换上外部 FBX 角色。
+   *
+   * 分成两步，为的是让模型尽快出现：
+   *   ① 角色本体一解析完就立刻换上（加载期间保持程序化人物可见，不挡漫游）；
+   *   ② 走 / 跑 / 跳动画在后台继续加载，到货后再接上动画系统。
+   * 单个动画文件就有 7 MB，等它们全部就绪才换模型会让开场白等很久。
+   */
   async loadExternalCharacter(url) {
+    const started = performance.now();
     try {
       const { object, clips, stats } = await loadCharacter(url);
       if (this.disposed) return;
+      console.log(`[player] 角色就绪，共 ${Math.round(performance.now() - started)} ms`);
 
       const previous = this.character.model;
       this.tilt.remove(previous);
@@ -284,10 +315,53 @@ export class Player {
         if (node.isMesh) meshes.push(node);
       });
 
-      const mixer = clips.length ? new THREE.AnimationMixer(object) : null;
+      this.character.model = object;
+      this.character.meshes = meshes;
+      this.character.hips = [];
+      this.character.shoulders = [];
+      this.character.external = {
+        object,
+        mixer: null,
+        actions: {},
+        current: null,
+        slot: null,
+        hasClips: false,
+        clips: [],
+        slots: [],
+        clipSpeeds: {},
+        jump: null,
+        stats,
+        facingOffset: CHARACTER_CONFIG.facingOffset,
+      };
+
+      // 立刻可见（第一人称下换模型也要重新应用隐藏）
+      this.applyModelVisibility();
+
+      // 动画在后台加载，不阻塞模型显示
+      this.loadAnimations(object, clips);
+      return this.character.external;
+    } catch (error) {
+      console.warn('[player] 外部角色加载失败，继续使用程序化人物：', error);
+      return null;
+    }
+  }
+
+  /** 后台加载动画并接上动画系统 */
+  async loadAnimations(object, ownClips) {
+    const started = performance.now();
+    try {
+      // 角色自带的片段往往只是一个单帧姿势（Mixamo 的 "mixamo.com"）
+      let allClips = (ownClips || []).filter((clip) => clip.duration > 0.05);
+      if (this.animationFiles?.length) {
+        allClips = allClips.concat(await loadAnimationClips(this.animationFiles));
+      }
+      if (this.disposed || this.character.model !== object) return;
+
+      const external = this.character.external;
+      const mixer = allClips.length ? new THREE.AnimationMixer(object) : null;
       const actions = {};
       if (mixer) {
-        const picked = pickClips(clips);
+        const picked = pickClips(allClips);
         for (const [slot, clip] of Object.entries(picked)) {
           const action = mixer.clipAction(clip);
           if (slot === 'jump') {
@@ -296,32 +370,41 @@ export class Player {
           }
           actions[slot] = action;
         }
+
+        // 速度标定：量出每个片段自身的地面速度，以及跳跃的离地窗口
+        const { speeds, details } = calibrateClipSpeeds(allClips, object);
+        external.clipSpeeds = speeds;
+        external.jump = actions.jump ? measureJumpClip(actions.jump.getClip(), object) : null;
+
+        const lines = Object.entries(details).map(
+          ([slot, d]) => `${slot}：步长 ${d.step} m，抬脚 ${d.lift} m → 自然速度 ${d.speed} m/s`,
+        );
+        if (lines.length) console.log('[player] 动画速度标定：\n  ' + lines.join('\n  '));
+        if (external.jump) {
+          const j = external.jump;
+          console.log(
+            `[player] 跳跃片段标定：时长 ${j.duration}s，脚抬高 ${j.lift} m，` +
+              `离地 ${j.airborneStart}s → 落地 ${j.contactTime}s` +
+              (j.startsAirborne ? '（⚠ 片段一开始就在空中，属于「下落→落地」动画，没有起跳段）' : ''),
+          );
+        }
       }
 
-      this.character.model = object;
-      this.character.meshes = meshes;
-      this.character.hips = [];
-      this.character.shoulders = [];
-      this.character.external = {
-        object,
-        mixer,
-        actions,
-        current: null,
-        slot: null,
-        hasClips: clips.length > 0,
-        stats,
-        facingOffset: CHARACTER_CONFIG.facingOffset,
-      };
+      external.mixer = mixer;
+      external.actions = actions;
+      external.hasClips = allClips.length > 0;
+      external.slots = Object.keys(actions);
+      external.clips = allClips.map((clip) => `${clip.name}(${clip.duration.toFixed(2)}s)`);
 
-      // 第一人称下换模型时要重新应用隐藏
-      this.applyModelVisibility();
-      return this.character.external;
+      console.log(
+        `[player] 动画就绪（角色出现后又用了 ${Math.round(performance.now() - started)} ms）\n` +
+          `  可用槽位：${external.slots.join(', ') || '（无）'}\n` +
+          `  片段清单：${external.clips.join('  ')}`,
+      );
     } catch (error) {
-      console.warn('[player] 外部角色加载失败，继续使用程序化人物：', error);
-      return null;
+      console.warn('[player] 动画加载失败，暂用程序化律动：', error);
     }
   }
-
   applyMouseLook(input) {
     const delta = input.consumeMouseDelta();
     if (delta.x === 0 && delta.y === 0) return;
@@ -445,25 +528,53 @@ export class Player {
 
     if (next && external.slot !== slot) {
       if (external.current) external.current.fadeOut(0.18);
-      next.reset().setEffectiveWeight(1).fadeIn(0.18).play();
+      next.reset().setEffectiveWeight(1).fadeIn(0.18);
+      if (slot === 'jump') this.setupJumpAction(next);
+      next.play();
       external.current = next;
       external.slot = slot;
     }
 
-    // 步频跟速度对齐，避免脚底打滑
+    // 步频跟速度对齐，避免脚底打滑：倍速 = 当前速度 ÷ 该动画自身的自然速度
+    const clipSpeeds = external.clipSpeeds || {};
     if (actions.walk && slot === 'walk') {
-      actions.walk.timeScale = THREE.MathUtils.clamp(this.speed / WALK_SPEED, 0.55, 1.7);
+      const natural = clipSpeeds.walk || WALK_SPEED;
+      actions.walk.timeScale = THREE.MathUtils.clamp(this.speed / natural, 0.45, 2.2);
     }
     if (actions.run && slot === 'run') {
-      actions.run.timeScale = THREE.MathUtils.clamp(this.speed / RUN_SPEED, 0.6, 1.5);
+      const natural = clipSpeeds.run || RUN_SPEED;
+      actions.run.timeScale = THREE.MathUtils.clamp(this.speed / natural, 0.5, 2.2);
     }
 
-    // 没有位移的片段也需要一点整体起伏，否则看起来像在地上滑
-    const step = Math.sin(this.walkPhase);
-    this.character.tilt.rotation.x = -0.05 * amplitude;
-    this.character.tilt.rotation.z = step * 0.015 * amplitude;
+    // 只保留一点点前倾。不要再在这里叠程序化侧摆：
+    // walkPhase 的推进速度（4 + speed × 1.9）与 Mixamo 片段的播放速率没有关系，
+    // 两个不同步的摆动叠在一起会「打拍子」，表现出来就是走路时人往一边歪。
+    // 片段本身已经有自然的身体侧摆，叠加只会破坏它。
+    this.character.tilt.rotation.x = -0.04 * amplitude;
+    this.character.tilt.rotation.z = 0;
 
     if (mixer) mixer.update(dt);
+  }
+
+  /**
+   * 把跳跃动画的「落地瞬间」对齐到物理落地的时刻。
+   *
+   * 物理滞空时间 = 2 × JUMP_SPEED / GRAVITY。
+   * 动画里脚从离地到落地的时段是 [airborneStart, contactTime]，
+   * 把这段拉伸/压缩到刚好等于滞空时间，脚就不会「提前落地」或者「落地后还在空中划」。
+   *
+   * 对 Mixamo 的 Landing 类片段（一开始就在空中）airborneStart ≈ 0，同样适用。
+   */
+  setupJumpAction(action) {
+    const jump = this.character.external?.jump;
+    const airTime = (2 * JUMP_SPEED) / GRAVITY;
+    if (!jump || !(jump.contactTime > jump.airborneStart)) {
+      action.timeScale = 1;
+      return;
+    }
+    const span = jump.contactTime - jump.airborneStart;
+    action.time = jump.airborneStart; // 从脚离开地面那一帧开始放
+    action.timeScale = THREE.MathUtils.clamp(span / airTime, 0.25, 3);
   }
 
   updateCamera(dt, camera) {

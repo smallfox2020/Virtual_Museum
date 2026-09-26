@@ -48,7 +48,7 @@
           "LICENSE"
         ]
       },
-      "Human.fbx"
+      "animations/**/*"
     ],
     "win": {
       "icon": "assets/icon.ico",
