@@ -1493,12 +1493,9 @@ const SHAPE_BUILDERS = {
  * rotateX/Y/Z 用来修正坐标系：Maya 导出的 FBX 一般是 Y 轴向上，
  * 若模型躺倒就把 rotateX 传 -Math.PI / 2。
  */
+// 注：models/huzuoniaojiagu.glb 保留在仓库里但**不接入** ——
+// 虎座鸟架鼓用程序化的 shapeDrum（含已修正的穿模）。
 const EXTERNAL_MODELS = {
-  // 虎座鸟架鼓：程序化形体只作为尺寸与位置的占位，加载完被真模型原地替换
-  drum: {
-    url: './models/huzuoniaojiagu.glb',
-    rotateX: 0, rotateY: 0, rotateZ: 0,
-  },
   meiping: {
     url: './models/yuan_qinghua_siai_meiping.glb',
     rotateX: 0, rotateY: 0, rotateZ: 0,
