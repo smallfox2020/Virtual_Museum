@@ -1,4 +1,6 @@
 import * as THREE from 'three';
+import { bumpThumbnailGeneration } from './thumbnails.js';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import {
   makeBronzeTexture,
   makeLacquerTexture,
@@ -627,49 +629,99 @@ function shapeDrumStand() {
   return group;
 }
 
-/** 虎座鸟架鼓：卧虎为座、凤鸟为架、鼓悬其中 */
+/**
+ * 虎座鸟架鼓（照湖北省博物馆藏实物照片重做）：
+ * 长条漆木底板 → 两只「背向」蹲伏的虎（头朝外昂起）→ 虎背上各立一只凤鸟，
+ * 长颈向中间上举、长喙相对 → 鼓面朝前，用绳吊在两只凤鸟颈前。
+ * 整体左右镜像对称，黑漆为底、红漆为彩。
+ */
 function shapeDrum() {
   const m = materials();
   const group = new THREE.Group();
 
+  // —— 底板：薄长条；前沿一道红漆带，下面挂两只铜环
+  group.add(mesh(new THREE.BoxGeometry(1.62, 0.06, 0.36), m.black, [0, 0.03, 0]));
+  group.add(mesh(new THREE.BoxGeometry(1.64, 0.018, 0.05), m.red, [0, 0.062, 0.16]));
+  for (const x of [-0.5, 0.5]) {
+    group.add(mesh(new THREE.TorusGeometry(0.035, 0.008, 6, 16), m.gold, [x, 0.02, 0.19], [Math.PI / 2, 0, 0]));
+  }
+
   for (const side of [-1, 1]) {
-    const bx = side * 0.42;
-    // 卧虎：身躯 + 四条短足 + 昂起的头 + 双耳 + 卷尾
-    group.add(mesh(new THREE.BoxGeometry(0.5, 0.14, 0.24), m.black, [bx, 0.1, 0]));
-    group.add(mesh(new THREE.BoxGeometry(0.5, 0.035, 0.26), m.red, [bx, 0.18, 0]));
-    for (const leg of [-0.18, -0.06, 0.12, 0.24]) {
-      group.add(mesh(new THREE.BoxGeometry(0.065, 0.11, 0.085), m.black, [bx + leg, 0.055, 0.07]));
-      group.add(mesh(new THREE.BoxGeometry(0.065, 0.11, 0.085), m.black, [bx + leg, 0.055, -0.07]));
-    }
-    group.add(mesh(new THREE.BoxGeometry(0.16, 0.16, 0.15), m.black, [bx + side * 0.3, 0.24, 0]));
-    group.add(mesh(new THREE.ConeGeometry(0.032, 0.085, 6), m.red, [bx + side * 0.3, 0.33, 0.05]));
-    group.add(mesh(new THREE.ConeGeometry(0.032, 0.085, 6), m.red, [bx + side * 0.3, 0.33, -0.05]));
-    group.add(mesh(new THREE.CylinderGeometry(0.018, 0.018, 0.18, 8), m.red, [bx - side * 0.31, 0.2, 0], [0, 0, Math.PI / 2.4]));
+    const bx = side * 0.43;
 
-    // 凤鸟：长颈自虎背旋起，双翼张开，尾羽后拖
-    group.add(mesh(new THREE.CylinderGeometry(0.045, 0.062, 0.44, 12), m.red, [bx, 0.4, 0], [0, 0, side * 0.18]));
-    group.add(mesh(new THREE.BoxGeometry(0.16, 0.12, 0.12), m.red, [bx - side * 0.11, 0.62, 0]));
-    group.add(mesh(new THREE.ConeGeometry(0.028, 0.11, 6), m.gold, [bx - side * 0.2, 0.61, 0], [0, 0, side * 1.57]));
-    for (const z of [-1, 1]) {
-      group.add(mesh(new THREE.BoxGeometry(0.3, 0.032, 0.15), m.black, [bx + side * 0.05, 0.43, z * 0.11], [0, 0, side * 0.5]));
+    // —— 蹲伏的虎：身躯低长、头朝外昂起、尾在里侧上卷
+    group.add(mesh(new THREE.BoxGeometry(0.62, 0.19, 0.25), m.black, [bx, 0.2, 0]));
+    group.add(mesh(new THREE.BoxGeometry(0.5, 0.03, 0.27), m.red, [bx, 0.3, 0]));      // 背脊红漆
+    group.add(mesh(new THREE.BoxGeometry(0.08, 0.17, 0.1), m.black, [bx + side * 0.23, 0.1, 0.08]));
+    group.add(mesh(new THREE.BoxGeometry(0.08, 0.17, 0.1), m.black, [bx + side * 0.23, 0.1, -0.08]));
+    group.add(mesh(new THREE.BoxGeometry(0.17, 0.11, 0.12), m.black, [bx - side * 0.22, 0.09, 0.07]));
+    group.add(mesh(new THREE.BoxGeometry(0.17, 0.11, 0.12), m.black, [bx - side * 0.22, 0.09, -0.07]));
+    // 虎头朝外：吻、立耳、双目、斑纹
+    group.add(mesh(new THREE.BoxGeometry(0.2, 0.18, 0.17), m.black, [bx + side * 0.34, 0.36, 0]));
+    group.add(mesh(new THREE.BoxGeometry(0.11, 0.075, 0.12), m.black, [bx + side * 0.46, 0.34, 0]));
+    for (const dz of [-0.06, 0.06]) {
+      group.add(mesh(new THREE.ConeGeometry(0.032, 0.075, 6), m.red, [bx + side * 0.32, 0.46, dz]));
+      group.add(mesh(new THREE.SphereGeometry(0.021, 10, 8), m.gold, [bx + side * 0.42, 0.4, dz]));
     }
-    group.add(mesh(new THREE.BoxGeometry(0.33, 0.045, 0.1), m.black, [bx + side * 0.2, 0.3, 0], [0, 0, -side * 0.35]));
-    // 悬鼓的铜链
-    group.add(mesh(new THREE.CylinderGeometry(0.008, 0.008, 0.24, 6), m.gold, [bx - side * 0.2, 0.78, 0], [0, 0, side * 0.5]));
+    for (const dx of [-0.11, 0.04]) {
+      group.add(mesh(new THREE.BoxGeometry(0.03, 0.19, 0.26), m.red, [bx + dx, 0.2, 0]));
+    }
+    // 卷尾：自里侧向上卷成 S。
+    // 原来卷到 x=±0.08、y=0.50 —— 那里离鼓轴只有 0.231，而鼓半径 0.36，
+    // 整条尾巴插在鼓肚子里（实测间隙 -0.129）。改成只卷到 0.16、高度压在
+    // 鼓底 0.46 以下，并收小一圈。
+    group.add(mesh(new THREE.CylinderGeometry(0.026, 0.034, 0.16, 8), m.black, [bx - side * 0.28, 0.3, 0], [0, 0, side * 0.5]));
+    group.add(mesh(new THREE.TorusGeometry(0.05, 0.02, 6, 16, Math.PI * 1.4), m.red, [bx - side * 0.27, 0.38, 0], [0, 0, side * -0.5]));
+
+    // —— 凤鸟：双腿立在虎背，长颈贴着鼓两侧竖直上行，头在鼓的上方向内转。
+    // 鸟的中轴比虎外移 0.05（bxB）：颈半径 0.076、鼓半径 0.36，
+    // 若鸟心仍在 0.43 则颈内侧面只到 0.354 —— 必然探进鼓里（实测 -0.026）。
+    const bxB = side * 0.48;
+    for (const dz of [-0.07, 0.07]) {
+      group.add(mesh(new THREE.CylinderGeometry(0.016, 0.021, 0.2, 8), m.red, [bxB, 0.42, dz]));
+      group.add(mesh(new THREE.ConeGeometry(0.03, 0.06, 6), m.gold, [bxB + side * 0.04, 0.33, dz], [0, 0, side * -1.5]));
+    }
+    const torso = mesh(new THREE.SphereGeometry(0.15, 18, 12), m.black, [bxB, 0.58, 0]);
+    torso.scale.set(0.82, 1.05, 0.85);
+    group.add(torso);
+    group.add(mesh(new THREE.BoxGeometry(0.21, 0.1, 0.2), m.red, [bxB, 0.62, 0]));       // 胸腹红漆
+    for (const dz of [-1, 1]) {
+      group.add(mesh(new THREE.BoxGeometry(0.08, 0.25, 0.05), m.black, [bxB + side * 0.07, 0.56, dz * 0.12], [0, 0, side * 0.32]));
+    }
+    // 长颈：两段几乎竖直上举。
+    // 原来写成「越往中间越向内」，第二段内收到 x=±0.27 —— 而鼓半径 0.36，
+    // 这一段必然插进鼓身里。实物是颈贴着鼓两侧上去、只有头转到鼓上方。
+    group.add(mesh(new THREE.CylinderGeometry(0.05, 0.076, 0.42, 12), m.black, [bxB, 0.86, 0], [0, 0, side * 0.04]));
+    group.add(mesh(new THREE.CylinderGeometry(0.042, 0.05, 0.36, 12), m.black, [bxB - side * 0.02, 1.18, 0], [0, 0, side * 0.1]));
+    // 鸟首：升到鼓的上方才向内；喙朝内上，两只喙尖之间留出 0.3 的空档
+    group.add(mesh(new THREE.SphereGeometry(0.075, 14, 10), m.black, [bxB - side * 0.08, 1.36, 0]));
+    group.add(mesh(new THREE.ConeGeometry(0.026, 0.16, 8), m.gold, [bxB - side * 0.2, 1.4, 0], [0, 0, side * 1.1]));
+    group.add(mesh(new THREE.BoxGeometry(0.06, 0.055, 0.04), m.red, [bxB - side * 0.08, 1.45, 0], [0, 0, side * 0.2]));
+    for (const dz of [-0.05, 0.05]) {
+      group.add(mesh(new THREE.SphereGeometry(0.016, 8, 6), m.gold, [bxB - side * 0.04, 1.38, dz]));
+    }
   }
 
-  // 鼓：横卧，鼓身两道鎏金篍，鼓面一圈鼓钉
-  group.add(mesh(new THREE.CylinderGeometry(0.22, 0.22, 0.42, 32), m.red, [0, 0.72, 0], [0, 0, Math.PI / 2]));
-  for (const x of [-0.21, 0.21]) {
-    group.add(mesh(new THREE.CylinderGeometry(0.225, 0.225, 0.02, 32), m.wood, [x, 0.72, 0], [0, 0, Math.PI / 2]));
-    group.add(mesh(new THREE.TorusGeometry(0.223, 0.014, 8, 36), m.gold, [x * 0.55, 0.72, 0], [0, Math.PI / 2, 0]));
-    for (let i = 0; i < 24; i += 1) {
-      const a = (i / 24) * Math.PI * 2;
-      group.add(mesh(new THREE.SphereGeometry(0.012, 8, 6), m.gold, [x, 0.72 + Math.cos(a) * 0.185, Math.sin(a) * 0.185]));
+  // —— 鼓：鼓面朝前（轴向 z），吊在两只凤鸟颈前
+  // 鼓半径 0.36、鼓心降到 0.82：上缘 1.18 低于鸟首底面 1.285，净空 0.1
+  group.add(mesh(new THREE.CylinderGeometry(0.36, 0.36, 0.3, 36), m.wood, [0, 0.82, 0], [Math.PI / 2, 0, 0]));
+  for (const z of [-0.15, 0.15]) {
+    group.add(mesh(new THREE.CylinderGeometry(0.38, 0.38, 0.035, 36), m.black, [0, 0.82, z + Math.sign(z) * 0.017], [Math.PI / 2, 0, 0]));
+    group.add(mesh(new THREE.TorusGeometry(0.36, 0.02, 8, 40), m.red, [0, 0.82, z]));
+  }
+  for (let i = 0; i < 18; i += 1) {
+    const a = (i / 18) * Math.PI * 2;
+    for (const z of [-0.18, 0.18]) {
+      group.add(mesh(new THREE.SphereGeometry(0.016, 8, 6), m.gold, [Math.cos(a) * 0.32, 0.82 + Math.sin(a) * 0.32, z]));
     }
   }
-  group.add(mesh(new THREE.TorusGeometry(0.221, 0.012, 8, 36), m.gold, [0, 0.72, 0], [0, Math.PI / 2, 0]));
-  group.add(mesh(new THREE.BoxGeometry(0.9, 0.05, 0.05), m.black, [0, 1.0, 0]));
+  // 吊绳与鸟爪
+  for (const side of [-1, 1]) {
+    group.add(mesh(new THREE.CylinderGeometry(0.008, 0.008, 0.5, 6), m.wood, [side * 0.3, 1.16, 0], [0, 0, side * 0.85]));
+    // 鸟爪：爪子抓在鼓边，所以几何上要贴着鼓（半径 0.36）而不能探进去。
+    // 原来放在 x=±0.37，AABB 内侧角到 0.272，比鼓边进 0.088 —— 实测相交 -0.026。
+    group.add(mesh(new THREE.CylinderGeometry(0.013, 0.013, 0.17, 6), m.gold, [side * 0.43, 0.85, 0], [0, 0, side * 0.5]));
+  }
   return group;
 }
 
@@ -1427,6 +1479,168 @@ const SHAPE_BUILDERS = {
 };
 
 /** 生成展品对象，并把包围盒调成「水平居中、底面贴 y = 0」 */
+/* ------------------------------------------------------------------ */
+/* 外部模型替换                                                        */
+/* ------------------------------------------------------------------ */
+
+/**
+ * 用外部 FBX 顶替程序化形体的展品。
+ *
+ * 加载是异步的，所以**先按程序化形体把位置摆好，加载完再原地换掉**：
+ * 缩放与对中都以「占位形体的高度」为准，于是展台标高、检视面板里的
+ * model 引用、点击高亮全都不用改。
+ *
+ * rotateX/Y/Z 用来修正坐标系：Maya 导出的 FBX 一般是 Y 轴向上，
+ * 若模型躺倒就把 rotateX 传 -Math.PI / 2。
+ */
+const EXTERNAL_MODELS = {
+  // 虎座鸟架鼓：程序化形体只作为尺寸与位置的占位，加载完被真模型原地替换
+  drum: {
+    url: './models/huzuoniaojiagu.glb',
+    rotateX: 0, rotateY: 0, rotateZ: 0,
+  },
+  meiping: {
+    url: './models/yuan_qinghua_siai_meiping.glb',
+    rotateX: 0, rotateY: 0, rotateZ: 0,
+    // 贴图方向校正 —— glb 的 UV 习惯与 three.js 不一致时就改这两项，不用改代码：
+    //   flipY  : 贴图上下翻转（V 方向）
+    //   mirrorU: 贴图左右镜像（U 方向）
+    flipY: false,
+    mirrorU: false,
+  },
+};
+
+/** 在 holder 里把占位形体换成外部模型；没有对应配置就什么都不做 */
+/**
+ * 从 .glb 的 BIN 块里直接切出内嵌图片，做成 THREE.Texture。
+ *
+ * GLTFLoader 会把内嵌图片包成 blob URL 交给浏览器解码，这条路径在某些环境
+ * 会失败（实测无头 Chromium 报 "Couldn't load texture blob:..."），失败后
+ * material.map 为空，器物就变成一道平色。这个兜底不依赖那条路径：
+ * 自己解析 glb 的 JSON 块与 BIN 块，按 images[].bufferView 切片。
+ */
+async function textureFromGlb(url, config = {}) {
+  const buffer = await (await fetch(url)).arrayBuffer();
+  const view = new DataView(buffer);
+  if (view.getUint32(0, true) !== 0x46546c67) return null; // 'glTF'
+  let offset = 12;
+  let json = null;
+  let bin = null;
+  while (offset < buffer.byteLength) {
+    const length = view.getUint32(offset, true);
+    const type = view.getUint32(offset + 4, true);
+    const start = offset + 8;
+    if (type === 0x4e4f534a) json = JSON.parse(new TextDecoder().decode(new Uint8Array(buffer, start, length)));
+    else if (type === 0x004e4942) bin = new Uint8Array(buffer, start, length);
+    offset = start + length;
+  }
+  if (!json || !bin || !json.images || !json.images.length) return null;
+  for (const image of json.images) {
+    if (image.bufferView === undefined) continue;
+    if (image.mimeType && !/image\/(png|jpe?g|webp)/.test(image.mimeType)) continue;
+    const part = json.bufferViews[image.bufferView];
+    const from = part.byteOffset ?? 0;
+    const bytes = bin.slice(from, from + part.byteLength);
+    const objectUrl = URL.createObjectURL(new Blob([bytes], { type: image.mimeType || 'image/png' }));
+    const texture = await new THREE.TextureLoader().loadAsync(objectUrl);
+    texture.colorSpace = THREE.SRGBColorSpace;
+    // 方向校正取自 EXTERNAL_MODELS 的配置：TextureLoader 默认 flipY = true，
+    // 而 FBX 系（左下原点）的 UV 正好对应这个默认值；若导出过程翻过 V 就传 false。
+    texture.flipY = config.flipY ?? false;
+    if (config.mirrorU) {
+      // U 范围是 [-0.5, 0.5]（对称），取负后正好以 0 为中心镜像，配合 Repeat 即可
+      texture.repeat.x = -1;
+      texture.offset.x = 0;
+    }
+    texture.wrapS = THREE.RepeatWrapping;
+    texture.wrapT = THREE.RepeatWrapping;
+    URL.revokeObjectURL(objectUrl);
+    console.info('[model] 兜底抠出 glb 内嵌图片 ' + part.byteLength + ' 字节');
+    return texture;
+  }
+  return null;
+}
+
+export async function applyExternalModel(shapeId, holder) {
+  const config = EXTERNAL_MODELS[shapeId];
+  if (!config) return;
+  const target = new THREE.Box3().setFromObject(holder).getSize(new THREE.Vector3()).y;
+  try {
+    // glb 是 three.js 的原生格式：贴图内嵌、UV 与包裹方式都已经烘进文件里，
+    // 不再需要「手工抠 PNG / 重建材质 / 改 wrap」那三层运行时补丁。
+    const gltf = await new GLTFLoader().loadAsync(config.url);
+    const model = gltf.scene ?? (gltf.scenes && gltf.scenes[0]);
+    if (!model) throw new Error('glb 里没有场景');
+
+    model.traverse((child) => {
+      if (!child.isMesh) return;
+      child.castShadow = true;
+      child.receiveShadow = true;
+      const mats = Array.isArray(child.material) ? child.material : [child.material];
+      for (const mm of mats) {
+        if (!mm) continue;
+        mm.side = THREE.DoubleSide;   // 薄壁器物露底面时兜底
+        if (!mm.map) continue;
+        if (mm.map.colorSpace !== THREE.SRGBColorSpace) mm.map.colorSpace = THREE.SRGBColorSpace;
+        // 注意：这里**不要**套用 config.flipY —— glTF 的 UV 原点在左上，
+        // GLTFLoader 已经设过 flipY = false，再按配置改一次反而是错的。
+        // flipY / mirrorU 只对下面那条「自己抠图」的兜底路径有意义。
+        mm.map.needsUpdate = true;
+        // 这个 glb 里没有 samplers 段，GLTFLoader 就没给 wrap 赋值，
+        // 于是走 three.js 的默认 ClampToEdge；而模型 UV 是 [-0.5, 0.5]
+        // （Maya 习惯把 UV 居中在 0），负的一半会被全部压到左边缘 ——
+        // 表现就是「一半正常、另一半被严重拉伸」。
+        mm.map.wrapS = THREE.RepeatWrapping;
+        mm.map.wrapT = THREE.RepeatWrapping;
+        mm.map.needsUpdate = true;
+      }
+    });
+
+    // 兜底：只要有网格没拿到贴图，就从 glb 的 BIN 里自己抠一张
+    let missingMap = false;
+    model.traverse((child) => {
+      if (!child.isMesh) return;
+      const mats = Array.isArray(child.material) ? child.material : [child.material];
+      for (const mm of mats) if (mm && !mm.map) missingMap = true;
+    });
+    if (missingMap) {
+      const fallback = await textureFromGlb(config.url, config);
+      if (fallback) {
+        model.traverse((child) => {
+          if (!child.isMesh) return;
+          const mats = Array.isArray(child.material) ? child.material : [child.material];
+          for (const mm of mats) {
+            if (!mm || mm.map) continue;
+            mm.map = fallback;
+            mm.color = new THREE.Color(0xffffff);
+            mm.needsUpdate = true;
+          }
+        });
+      }
+    }
+
+    model.rotation.set(config.rotateX, config.rotateY, config.rotateZ);
+    model.updateMatrixWorld(true);
+
+    // 归一化：按占位形体的高度等比缩放，底面对齐 y = 0、水平居中。
+    // 这样展台标高、浮动动画、检视面板的引用都不用动。
+    const box = new THREE.Box3().setFromObject(model);
+    const size = box.getSize(new THREE.Vector3());
+    const center = box.getCenter(new THREE.Vector3());
+    const k = size.y > 1e-6 && target > 1e-6 ? target / size.y : 1;
+    model.scale.setScalar(k);
+    model.position.set(-center.x * k, -box.min.y * k, -center.z * k);
+
+    for (const child of [...holder.children]) holder.remove(child);
+    holder.add(model);
+    // 缩略图按展品名缓存，此刻必须失效：抽签的图、猜谜的剪影、检视面板的小图会重截
+    bumpThumbnailGeneration();
+    console.info('[model] 已换成 glb 外部模型 ' + config.url);
+  } catch (error) {
+    console.warn('[model] 加载失败 ' + config.url, error);
+  }
+}
+
 export function createArtifactObject(artifact) {
   // 按展品名挑纹样变体，让同一展厅里的器物纹饰各不相同
   activeVariant = artifact.variant ?? variantOf(artifact.name ?? '');

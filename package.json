@@ -48,7 +48,7 @@
           "LICENSE"
         ]
       },
-      "animations/**/*"
+      "animations/**/*", "models/**/*"
     ],
     "win": {
       "icon": "assets/icon.ico",

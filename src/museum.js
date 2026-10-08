@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { ARTIFACTS, createArtifactObject, buildChimeBells, materials } from './artifacts.js';
+import { ARTIFACTS, createArtifactObject, buildChimeBells, materials, applyExternalModel } from './artifacts.js';
 import { createStructures } from './structures.js';
 import * as tex from './textures.js';
 
@@ -1629,6 +1629,12 @@ function buildArtifact(artifact) {
   const holder = new THREE.Group();
   holder.position.set(x, baseY, z);
   holder.add(object);
+  // 有外部模型就用它顶掉程序化形体（异步，加载完原地替换）。
+  // 注意传的是 object 而不是 holder：interactable.model 指向 object，
+  // 检视面板/观赏/抽签/缩略图都拿它去渲染。换 holder 的子节点等于把
+  // object 变成脱离场景的孤儿 —— 场景里显示的是新模型，而所有"看"的入口
+  // 拿到的还是旧形体（这就是"模型换了但观赏里没变"的原因）。
+  applyExternalModel(artifact.shape, object);
 
   return {
     object,

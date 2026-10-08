@@ -6,6 +6,16 @@ import { createArtifactObject } from './artifacts.js';
  * 展品缩略图渲染器：用一块离屏 WebGL 画布把展品渲染成 dataURL 图片。
  * 抽签结果卡与猜谜游戏的「局部 / 剪影 / 图鉴」共用，按展品名缓存。
  */
+/**
+ * 缓存版本号。外部模型是异步换进来的，换完旧缩略图就作废了 ——
+ * 把版本号 +1，缓存键随之改变，下一次就会重新截取。
+ */
+let generation = 0;
+
+export function bumpThumbnailGeneration() {
+  generation += 1;
+}
+
 export function createThumbnailer({ size = 440 } = {}) {
   const cache = new Map();
   let rig = null;
@@ -54,7 +64,8 @@ export function createThumbnailer({ size = 440 } = {}) {
   }
 
   return function thumbnail(artifact) {
-    if (cache.has(artifact.name)) return cache.get(artifact.name);
+    const key = artifact.name + "#" + generation;
+    if (cache.has(key)) return cache.get(key);
     const current = ensureRig();
 
     current.holder.clear();
@@ -77,7 +88,7 @@ export function createThumbnailer({ size = 440 } = {}) {
     current.renderer.render(current.scene, current.camera);
 
     const url = current.renderer.domElement.toDataURL('image/png');
-    cache.set(artifact.name, url);
+    cache.set(key, url);
     return url;
   };
 }

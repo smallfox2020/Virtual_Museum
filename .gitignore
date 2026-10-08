@@ -2,6 +2,9 @@
 node_modules/
 jspm_packages/
 
+#报道
+report/
+
 # 日志
 *.log
 npm-debug.log*
