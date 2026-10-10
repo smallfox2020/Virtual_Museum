@@ -1493,9 +1493,12 @@ const SHAPE_BUILDERS = {
  * rotateX/Y/Z 用来修正坐标系：Maya 导出的 FBX 一般是 Y 轴向上，
  * 若模型躺倒就把 rotateX 传 -Math.PI / 2。
  */
-// 注：models/huzuoniaojiagu.glb 保留在仓库里但**不接入** ——
-// 虎座鸟架鼓用程序化的 shapeDrum（含已修正的穿模）。
 const EXTERNAL_MODELS = {
+  // 虎座鸟架鼓：程序化的 shapeDrum 只作为尺寸与位置的占位，加载完被真模型原地替换
+  drum: {
+    url: './models/huzuoniaojiagu.glb',
+    rotateX: 0, rotateY: 0, rotateZ: 0,
+  },
   meiping: {
     url: './models/yuan_qinghua_siai_meiping.glb',
     rotateX: 0, rotateY: 0, rotateZ: 0,
@@ -1516,7 +1519,7 @@ const EXTERNAL_MODELS = {
  * material.map 为空，器物就变成一道平色。这个兜底不依赖那条路径：
  * 自己解析 glb 的 JSON 块与 BIN 块，按 images[].bufferView 切片。
  */
-async function textureFromGlb(url, config = {}) {
+async function texturesFromGlb(url, config = {}) {
   const buffer = await (await fetch(url)).arrayBuffer();
   const view = new DataView(buffer);
   if (view.getUint32(0, true) !== 0x46546c67) return null; // 'glTF'
@@ -1531,7 +1534,8 @@ async function textureFromGlb(url, config = {}) {
     else if (type === 0x004e4942) bin = new Uint8Array(buffer, start, length);
     offset = start + length;
   }
-  if (!json || !bin || !json.images || !json.images.length) return null;
+  if (!json || !bin || !json.images || !json.images.length) return [];
+  const out = [];
   for (const image of json.images) {
     if (image.bufferView === undefined) continue;
     if (image.mimeType && !/image\/(png|jpe?g|webp)/.test(image.mimeType)) continue;
@@ -1553,9 +1557,9 @@ async function textureFromGlb(url, config = {}) {
     texture.wrapT = THREE.RepeatWrapping;
     URL.revokeObjectURL(objectUrl);
     console.info('[model] 兜底抠出 glb 内嵌图片 ' + part.byteLength + ' 字节');
-    return texture;
+    out.push(texture);
   }
-  return null;
+  return out;
 }
 
 export async function applyExternalModel(shapeId, holder) {
@@ -1601,18 +1605,24 @@ export async function applyExternalModel(shapeId, holder) {
       for (const mm of mats) if (mm && !mm.map) missingMap = true;
     });
     if (missingMap) {
-      const fallback = await textureFromGlb(config.url, config);
-      if (fallback) {
+      const fallbacks = await texturesFromGlb(config.url, config);
+      if (fallbacks.length) {
+        // 一只模型可能有好几张贴图（虎座鸟架鼓就有 4 张）。原来只抠第一张、
+        // 又把它发给所有材质，结果是「所有部件一个花纹」。
+        // glTF 里材质与贴图的顺序一致，所以按顺序发给「缺图」的材质即可。
+        let cursor = 0;
         model.traverse((child) => {
           if (!child.isMesh) return;
           const mats = Array.isArray(child.material) ? child.material : [child.material];
           for (const mm of mats) {
             if (!mm || mm.map) continue;
-            mm.map = fallback;
+            mm.map = fallbacks[Math.min(cursor, fallbacks.length - 1)];
+            cursor += 1;
             mm.color = new THREE.Color(0xffffff);
             mm.needsUpdate = true;
           }
         });
+        console.info('[model] 兜底共补上 ' + cursor + ' 个材质，用了 ' + fallbacks.length + ' 张贴图');
       }
     }
 
