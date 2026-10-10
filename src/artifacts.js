@@ -1557,7 +1557,7 @@ async function texturesFromGlb(url, config = {}) {
     texture.wrapT = THREE.RepeatWrapping;
     URL.revokeObjectURL(objectUrl);
     console.info('[model] 兜底抠出 glb 内嵌图片 ' + part.byteLength + ' 字节');
-    out.push(texture);
+    out.push({ imageIndex: json.images.indexOf(image), texture });
   }
   return out;
 }
@@ -1607,22 +1607,48 @@ export async function applyExternalModel(shapeId, holder) {
     if (missingMap) {
       const fallbacks = await texturesFromGlb(config.url, config);
       if (fallbacks.length) {
-        // 一只模型可能有好几张贴图（虎座鸟架鼓就有 4 张）。原来只抠第一张、
-        // 又把它发给所有材质，结果是「所有部件一个花纹」。
-        // glTF 里材质与贴图的顺序一致，所以按顺序发给「缺图」的材质即可。
+        // 一只模型可能有好几张贴图（虎座鸟架鼓有 4 张）。**不能按遍历顺序盲分** ——
+        // 遍历顺序跟着场景图走，与 glTF 里的材质下标顺序不一定一致，
+        // 盲分会把贴图串位（每个部件拿到别人的花纹）。
+        // 正确做法：用 parser.associations 把 three.js 材质反查回 glTF 材质下标，
+        // 再顺着它声明的 baseColorTexture -> textures[i] -> images[j] 取图。
+        const parser = gltf.parser;
+        const associations = parser && parser.associations;
+        const json = parser && parser.json;
+        const byImage = new Map();
+        for (const item of fallbacks) byImage.set(item.imageIndex, item.texture);
+
+        const resolve = (mm) => {
+          if (!associations || !json) return null;
+          const ref = associations.get(mm);
+          const materialIndex = ref && ref.materials !== undefined ? ref.materials : null;
+          if (materialIndex === null) return null;
+          const gltfMaterial = json.materials[materialIndex];
+          const texIndex = gltfMaterial?.pbrMetallicRoughness?.baseColorTexture?.index;
+          if (texIndex === undefined) return null;
+          const source = json.textures[texIndex]?.source;
+          return source !== undefined ? byImage.get(source) ?? null : null;
+        };
+
+        let fixed = 0;
+        let guessed = 0;
         let cursor = 0;
         model.traverse((child) => {
           if (!child.isMesh) return;
           const mats = Array.isArray(child.material) ? child.material : [child.material];
           for (const mm of mats) {
             if (!mm || mm.map) continue;
-            mm.map = fallbacks[Math.min(cursor, fallbacks.length - 1)];
+            const exact = resolve(mm);
+            if (exact) fixed += 1;
+            else guessed += 1;
+            // 精确匹配失败时才退回「按序遍历」，聊胜于无
+            mm.map = exact || fallbacks[Math.min(cursor, fallbacks.length - 1)].texture;
             cursor += 1;
             mm.color = new THREE.Color(0xffffff);
             mm.needsUpdate = true;
           }
         });
-        console.info('[model] 兜底共补上 ' + cursor + ' 个材质，用了 ' + fallbacks.length + ' 张贴图');
+        console.info('[model] 兜底补图：按声明对应 ' + fixed + ' 个，退回顺序猜 ' + guessed + ' 个，共 ' + fallbacks.length + ' 张');
       }
     }
 
